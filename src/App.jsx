@@ -7,6 +7,7 @@ import AchatsPage from './pages/Achats/AchatsPage';
 import ExamPlaningPage from './pages/ExamPlaning/ExamPlaningPage';
 import RhPage from './pages/Rh/RhPage';
 import ConcoursPage from './pages/Concours/ConcoursPage';
+import Charte_graphiquePage from './pages/Charte_Graphique/charte'
 
 import DashboardLayoutBasic from './components/DashboardLayoutBasic'
 import { Route, Routes } from 'react-router-dom';
@@ -22,6 +23,7 @@ function App() {
       <Route path="examplaning" element={<ExamPlaningPage />} />
       <Route path="rh" element={<RhPage />} />
       <Route path="concours" element={<ConcoursPage />} />
+      <Route path="charte_graphique" element={<Charte_graphiquePage />} />
     </Route>
   </Routes>
   )

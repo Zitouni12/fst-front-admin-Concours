@@ -80,6 +80,12 @@ export const NAVIGATION = [
       },
     ],
   },
+  {
+    segment: 'charte_graphique',
+    title: 'Charte Graphique',
+    icon: <AssignmentIcon />,
+    path: '/charte_graphique', 
+  },
 ];
 
 export default function Navigation() {

@@ -1,0 +1,152 @@
+"use client"
+import React from 'react';
+import { TextField, Button, Box, Typography, ThemeProvider, createTheme } from '@mui/material';
+
+// Définition des couleurs principales selon la charte UCA
+const primaryColor = "#B36B39"; // Couleur bronze/cuivre du logo
+const secondaryColor = "#2C3E50"; // Bleu foncé pour le contraste
+const backgroundColor = "#F5F5F5"; // Gris clair pour le fond
+const accentColor = "#E74C3C"; // Rouge pour l'accent
+
+// Création du thème UCA
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: primaryColor,
+      contrastText: "#ffffff",
+    },
+    secondary: {
+      main: secondaryColor,
+      contrastText: "#ffffff",
+    },
+    background: {
+      default: backgroundColor,
+    },
+  },
+  typography: {
+    fontFamily: '"Roboto", "Arial", sans-serif',
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 30,
+          textTransform: "none",
+          padding: "10px 20px",
+          transition: "all 0.3s ease",
+          fontWeight: 600,
+          boxShadow: "none",
+          "&:hover": {
+            transform: "translateY(-3px)",
+            boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+          },
+        },
+        containedPrimary: {
+          background: `linear-gradient(45deg, ${primaryColor} 30%, ${primaryColor}CC 90%)`,
+          "&:hover": {
+            background: `linear-gradient(45deg, ${primaryColor}CC 30%, ${primaryColor} 90%)`,
+          },
+          "&.Mui-disabled": {
+            background: "#ccc",
+            color: "#666",
+          },
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          '& .MuiOutlinedInput-root': {
+            '& fieldset': {
+              borderColor: '#E0E0E0',
+              borderRadius: 8,
+              transition: 'all 0.3s',
+            },
+            '&:hover fieldset': {
+              borderColor: primaryColor,
+            },
+            '&.Mui-focused fieldset': {
+              borderColor: primaryColor,
+              borderWidth: 2,
+            },
+          },
+          '& .MuiInputLabel-root': {
+            color: '#555',
+            '&.Mui-focused': {
+              color: primaryColor,
+            },
+          },
+          '& .MuiInputBase-input': {
+            padding: '12px 14px',
+          },
+        },
+      },
+    },
+  },
+});
+
+const AutomaticAdmission = ({ autoAdmitCount, setAutoAdmitCount, handleAutomaticAdmission }) => {
+  return (
+    <ThemeProvider theme={theme}>
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'stretch', sm: 'center' }, 
+          justifyContent: 'space-between',
+          mb: 3,
+          p: 3,
+          bgcolor: 'white',
+          borderRadius: 3,
+          boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+        }}
+      >
+        <Box sx={{ mb: { xs: 2, sm: 0 } }}>
+          <Typography 
+            variant="body1" 
+            sx={{ 
+              mb: 1, 
+              fontWeight: 600, 
+              color: secondaryColor 
+            }}
+          >
+            Admission automatique
+          </Typography>
+          <TextField
+            label="Nombre de candidats à admettre"
+            type="number"
+            value={autoAdmitCount || ''}
+            onChange={(e) => {
+              const value = e.target.value === '' ? '' : parseInt(e.target.value, 10);
+              setAutoAdmitCount(value);
+            }}
+            size="small"
+            fullWidth
+            sx={{ 
+              width: { xs: '100%', sm: 250 },
+              mr: { xs: 0, sm: 3 }
+            }}
+            InputProps={{
+              inputProps: { min: 1 }
+            }}
+          />
+        </Box>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleAutomaticAdmission}
+          disabled={!autoAdmitCount || autoAdmitCount <= 0}
+          sx={{
+            minWidth: 200,
+            fontWeight: 600,
+            py: 1.2
+          }}
+        >
+          Admettre Automatiquement
+        </Button>
+      </Box>
+    </ThemeProvider>
+  );
+};
+
+export default AutomaticAdmission;

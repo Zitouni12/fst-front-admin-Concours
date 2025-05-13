@@ -37,12 +37,37 @@ export const NAVIGATION = [
     icon: <WorkIcon />,
     path: '/stage', 
   },
+
+
+
+  // Les autres éléments de navigation ici...
   {
     segment: 'Concours',
     title: 'Concours',
     icon: <AssignmentIcon />,
-    path: '/concours', 
+    children: [
+      {
+        segment: 'CreationFormulaire',
+        title: 'Création Formulaire',
+        icon: <DescriptionIcon />,
+        path: 'Concours/CreationFormulaire',
+      },
+      {
+        segment: 'GestionConcours',
+        title: 'Gestion Concours',
+        icon: <DescriptionIcon />,
+        path: '/Concours/Gestionconcours',
+      },
+      {
+        segment: 'GestionCandidatures',
+        title: 'Gestion Candidatures',
+        icon: <DescriptionIcon />,
+        path: '/Concours/Gestioncandidatures',
+      },
+    ],
   },
+  
+
   {
     segment: 'Achats',
     title: 'Achats',
@@ -86,6 +111,8 @@ export const NAVIGATION = [
     icon: <AssignmentIcon />,
     path: '/charte_graphique', 
   },
+
+
 ];
 
 export default function Navigation() {

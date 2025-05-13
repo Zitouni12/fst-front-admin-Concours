@@ -10,7 +10,13 @@ import ConcoursPage from './pages/Concours/ConcoursPage';
 import Charte_graphiquePage from './pages/Charte_Graphique/charte'
 
 import DashboardLayoutBasic from './components/DashboardLayoutBasic'
-import { Route, Routes } from 'react-router-dom';
+
+//Routes Concours 
+import CreationFormulaire from './pages/Concours/CreationFormulaire';
+import GestionConcours from './pages/Concours/GestionConcours';
+import GestionCandidatures from './pages/Concours/GestionCandidatures';
+
+import { Route, Routes, Navigate } from 'react-router-dom';
 
 function App() {
   return (
@@ -22,8 +28,15 @@ function App() {
       <Route path="achats" element={<AchatsPage />} />
       <Route path="examplaning" element={<ExamPlaningPage />} />
       <Route path="rh" element={<RhPage />} />
-      <Route path="concours" element={<ConcoursPage />} />
+      
       <Route path="charte_graphique" element={<Charte_graphiquePage />} />
+
+     
+  
+      <Route path="Concours/Gestionconcours" element={<GestionConcours />} />
+      <Route path="Concours/Gestioncandidatures" element={<GestionCandidatures />} />
+      <Route path="Concours/CreationFormulaire" element={<CreationFormulaire />} />
+
     </Route>
   </Routes>
   )

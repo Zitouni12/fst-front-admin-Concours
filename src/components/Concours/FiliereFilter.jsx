@@ -77,7 +77,7 @@ const FiliereFilter = ({
               fontSize: '1.1rem',
             }}
           >
-            {filiereFilter ? filiereFilter : 'Sélectionner un concours'}
+            {filieres.find(f => f.id === filiereFilter)?.title || 'Sélectionner un concours'}
           </Typography>
         </Box>
 
@@ -129,15 +129,15 @@ const FiliereFilter = ({
             }
           }}
         >
-          {filieres.map((filiereItem) => (
-            <MenuItem 
-              key={filiereItem} 
-              onClick={() => handleSelectFiliere(filiereItem)}
-              selected={filiereItem === filiereFilter}
-            >
-              {filiereItem}
-            </MenuItem>
-          ))}
+        {filieres.map((filiereItem) => (
+  <MenuItem 
+    key={filiereItem.id} 
+    onClick={() => handleSelectFiliere(filiereItem.id)}
+    selected={filiereItem.id === filiereFilter}
+  >
+    {filiereItem.nom}
+  </MenuItem>
+))}
         </Menu>
       </Toolbar>
     </AppBar>

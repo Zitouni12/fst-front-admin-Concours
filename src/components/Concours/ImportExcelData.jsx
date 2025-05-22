@@ -1,5 +1,5 @@
-import React from 'react';
-import { Typography, Box, Paper, Button, styled } from '@mui/material';
+import React, { useState } from 'react';
+import { Typography, Box, Paper, Button, Alert, styled } from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 
@@ -21,17 +21,58 @@ const VisuallyHiddenInput = styled('input')({
   width: 1,
 });
 
-const ImportExcelData = ({ phase, handleImportData }) => {
-    const phaseLabel = phase === 'ecrits' ? "l'épreuve écrite" : phase === 'oral' ? "l'épreuve orale" : "";
-    const phaseType = phase === 'ecrits' ? 'ecrits' : phase === 'oral' ? 'oral' : null;
-    const [fileName, setFileName] = React.useState('');
+const ImportExcelNotesFormat = ({ phase, handleImportNotes }) => {
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [success, setSuccess] = useState(false);
 
-    const handleFileChange = (e) => {
-        if (e.target.files && e.target.files[0] && phaseType) {
-            setFileName(e.target.files[0].name);
-            handleImportData(e.target.files[0], phaseType);
+    const handleFileChange = (event) => {
+        const file = event.target.files[0];
+        console.log("Fichier sélectionné:", file);
+        setSelectedFile(file);
+        setError(null);
+        setSuccess(false);
+    };
+
+    const handleUpload = async () => {
+        if (!selectedFile) {
+            setError("Veuillez sélectionner un fichier");
+            return;
+        }
+
+        const extension = selectedFile.name.split('.').pop().toLowerCase();
+        if (!['xlsx', 'xls'].includes(extension)) {
+            setError("Format de fichier non supporté. Utilisez .xlsx ou .xls");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            console.log("Envoi du fichier:", selectedFile);
+            
+            const result = await handleImportNotes(selectedFile);
+            console.log("Résultat de l'importation:", result);
+            
+            if (result.errors && result.errors.length > 0) {
+                setError(`Importation terminée avec ${result.errors.length} erreurs. Vérifiez les données.`);
+            } else {
+                setSuccess(true);
+                setError(null);
+            }
+        } catch (err) {
+            console.error("Erreur complète:", err);
+            setError("Erreur lors de l'importation: " + 
+                (err.response?.data?.errors?.file?.[0] || 
+                 err.response?.data?.error || 
+                 err.message));
+            setSuccess(false);
+        } finally {
+            setLoading(false);
         }
     };
+
+    const phaseLabel = phase === 'ecrits' ? "d'épreuves écrites" : "d'épreuves orales";
 
     return (
         <Paper 
@@ -56,8 +97,31 @@ const ImportExcelData = ({ phase, handleImportData }) => {
                 }}
             >
                 <UploadFileIcon sx={{ color: primaryColor }} />
-                Importer les données de {phaseLabel} depuis Excel
+                Importer les notes {phaseLabel} (format spécifique)
             </Typography>
+            
+            <Typography 
+                variant="body2" 
+                sx={{ 
+                    mb: 2, 
+                    color: 'text.secondary',
+                    fontStyle: 'italic'
+                }}
+            >
+                Importez le fichier Excel au format (CNE, CIN, Nom, Prénom, Note Épreuve Écrite, Note Épreuve Orale) avec les notes remplies.
+            </Typography>
+            
+            {error && (
+                <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                    {error}
+                </Alert>
+            )}
+            
+            {success && (
+                <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>
+                    Les notes ont été importées avec succès!
+                </Alert>
+            )}
             
             <Box 
                 sx={{ 
@@ -66,7 +130,7 @@ const ImportExcelData = ({ phase, handleImportData }) => {
                     alignItems: 'center',
                     p: 3,
                     border: '2px dashed',
-                    borderColor: `${primaryColor}50`,
+                    borderColor: error ? '#f44336' : selectedFile ? primaryColor : `${primaryColor}50`,
                     borderRadius: 2,
                     backgroundColor: `${backgroundColor}80`,
                     transition: 'all 0.3s ease',
@@ -80,6 +144,7 @@ const ImportExcelData = ({ phase, handleImportData }) => {
                     component="label"
                     variant="contained"
                     startIcon={<FileUploadIcon />}
+                    disabled={loading}
                     sx={{
                         borderRadius: 30,
                         textTransform: "none",
@@ -87,19 +152,28 @@ const ImportExcelData = ({ phase, handleImportData }) => {
                         transition: "all 0.3s ease",
                         fontWeight: 600,
                         boxShadow: "none",
-                        background: `linear-gradient(45deg, ${primaryColor} 30%, ${primaryColor}CC 90%)`,
+                        background: loading 
+                            ? `${primaryColor}80`
+                            : `linear-gradient(45deg, ${primaryColor} 30%, ${primaryColor}CC 90%)`,
                         "&:hover": {
-                            transform: "translateY(-3px)",
-                            boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-                            background: `linear-gradient(45deg, ${primaryColor}CC 30%, ${primaryColor} 90%)`,
+                            transform: loading ? "none" : "translateY(-3px)",
+                            boxShadow: loading ? "none" : "0 4px 8px rgba(0,0,0,0.1)",
+                            background: loading 
+                                ? `${primaryColor}80`
+                                : `linear-gradient(45deg, ${primaryColor}CC 30%, ${primaryColor} 90%)`,
                         },
+                        "&:disabled": {
+                            background: `${primaryColor}80`,
+                            color: "rgba(255, 255, 255, 0.7)"
+                        }
                     }}
                 >
-                    Sélectionner un fichier
+                    {loading ? "Importation..." : "Sélectionner un fichier"}
                     <VisuallyHiddenInput 
                         type="file"
-                        accept=".xlsx, .csv"
+                        accept=".xlsx,.xls"
                         onChange={handleFileChange}
+                        disabled={loading}
                     />
                 </Button>
                 
@@ -108,28 +182,40 @@ const ImportExcelData = ({ phase, handleImportData }) => {
                     sx={{ 
                         mt: 2, 
                         color: 'text.secondary',
-                        fontStyle: fileName ? 'normal' : 'italic'
+                        fontStyle: selectedFile ? 'normal' : 'italic',
+                        textAlign: 'center'
                     }}
                 >
-                    {fileName ? `Fichier sélectionné: ${fileName}` : 'Formats acceptés: .xlsx, .csv'}
+                    {selectedFile 
+                        ? `Fichier sélectionné: ${selectedFile.name}` 
+                        : 'Formats acceptés: .xlsx, .xls'
+                    }
                 </Typography>
-            </Box>
-            
-            {fileName && (
-                <Box sx={{ mt: 2, textAlign: 'center' }}>
-                    <Typography 
-                        variant="body2" 
-                        sx={{ 
-                            color: primaryColor,
-                            fontWeight: 500
+                
+                {selectedFile && !loading && !success && (
+                    <Button
+                        variant="contained"
+                        onClick={handleUpload}
+                        sx={{
+                            mt: 2,
+                            borderRadius: 30,
+                            textTransform: "none",
+                            padding: "8px 24px",
+                            fontWeight: 600,
+                            backgroundColor: primaryColor,
+                            "&:hover": {
+                                backgroundColor: `${primaryColor}CC`,
+                                transform: "translateY(-2px)",
+                                boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                            }
                         }}
                     >
-                        Les données ont été importées avec succès!
-                    </Typography>
-                </Box>
-            )}
+                        Importer les notes
+                    </Button>
+                )}
+            </Box>
         </Paper>
     );
 };
 
-export default ImportExcelData;
+export default ImportExcelNotesFormat;

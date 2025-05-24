@@ -298,7 +298,7 @@ const StyledPaper = styled(Paper)(({ theme }) => ({
   position: "relative",
 }))
 
-const DateBadge = styled(Chip)(({color, variant }) => ({
+const DateBadge = styled(Chip)(({ color, variant }) => ({
   fontWeight: 600,
   fontSize: "0.75rem",
   height: 28,
@@ -330,18 +330,17 @@ const CardTitle = styled(Typography)(({ theme }) => ({
 }))
 
 const ActionButton = styled(Button)(() => ({
-    borderRadius: 30,
-    textTransform: "none",
-    fontWeight: 600,
-    boxShadow: "none",
-    padding: "8px 16px",
-    transition: "all 0.3s ease",
-    "&:hover": {
-      transform: "translateY(-2px)",
-      boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-    },
-  }))
-  
+  borderRadius: 30,
+  textTransform: "none",
+  fontWeight: 600,
+  boxShadow: "none",
+  padding: "8px 16px",
+  transition: "all 0.3s ease",
+  "&:hover": {
+    transform: "translateY(-2px)",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+  },
+}))
 
 const StatusChip = styled(Chip)(({ color, variant }) => ({
   fontWeight: 600,
@@ -364,6 +363,10 @@ const GestionConcours = () => {
 
   const handleEditConcours = (concoursId) => {
     const concoursToEdit = concoursList.find((c) => c.id === concoursId)
+    // Si type_epreuve n'existe pas dans l'objet, on définit une valeur par défaut
+    if (!concoursToEdit.type_epreuve) {
+      concoursToEdit.type_epreuve = "ecrit_oral"
+    }
     setSelectedConcours({ ...concoursToEdit })
     setOpenEditDialog(true)
   }
@@ -376,6 +379,7 @@ const GestionConcours = () => {
     date_limite: "",
     date_ecrit: "",
     date_oral: "",
+    type_epreuve: "ecrit_oral", // Valeur par défaut
   })
 
   // Récupérer les concours depuis le backend
@@ -433,27 +437,96 @@ const GestionConcours = () => {
   }
 
   // Soumettre le formulaire
-  const handleSubmit = async () => {
-    try {
-      const form = new FormData()
-      Object.keys(formData).forEach((key) => form.append(key, formData[key]))
-      if (pdfFile) {
-        form.append("pdf_file", pdfFile)
-      }
+  // Soumettre le formulaire
+const handleSubmit = async () => {
+  // Validation côté frontend
+  if (!formData.title || !formData.description || !formData.date_lancement || !formData.date_limite) {
+    alert("Veuillez remplir tous les champs obligatoires.");
+    return;
+  }
 
-      const response = await axios.post("http://127.0.0.1:8000/api/concours", form, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      })
+  if (!formData.type_epreuve) {
+    alert("Veuillez sélectionner au moins un type d'épreuve.");
+    return;
+  }
 
-      alert("Concours publié avec succès !")
-      setConcoursList((prev) => [response.data, ...prev]) // ajout local
-    } catch (error) {
-      console.error("Erreur lors de la publication :", error)
-      alert("Erreur lors de la publication du concours.")
+  // Validation des dates d'épreuves selon le type
+  if (formData.type_epreuve === "ecrit" && !formData.date_ecrit) {
+    alert("Veuillez spécifier la date de l'épreuve écrite.");
+    return;
+  }
+  
+  if (formData.type_epreuve === "oral" && !formData.date_oral) {
+    alert("Veuillez spécifier la date de l'épreuve orale.");
+    return;
+  }
+  
+  if (formData.type_epreuve === "ecrit_oral" && (!formData.date_ecrit || !formData.date_oral)) {
+    alert("Veuillez spécifier les dates des épreuves écrite et orale.");
+    return;
+  }
+
+  try {
+    const form = new FormData();
+    
+    // Ajouter tous les champs requis
+    form.append('title', formData.title);
+    form.append('description', formData.description);
+    form.append('date_lancement', formData.date_lancement);
+    form.append('date_limite', formData.date_limite);
+    form.append('type_epreuve', formData.type_epreuve);
+    
+    // Ajouter les dates d'épreuves seulement si elles sont définies
+    if (formData.date_ecrit && (formData.type_epreuve === "ecrit" || formData.type_epreuve === "ecrit_oral")) {
+      form.append('date_ecrit', formData.date_ecrit);
+    }
+    if (formData.date_oral && (formData.type_epreuve === "oral" || formData.type_epreuve === "ecrit_oral")) {
+      form.append('date_oral', formData.date_oral);
+    }
+    
+    // Ajouter le fichier PDF s'il existe
+    if (pdfFile) {
+      form.append('pdf_file', pdfFile);
+    }
+
+   // Pour déboguer le contenu du FormData
+form.forEach((value, key) => {
+  console.log(`${key}:`, value);
+});
+    const response = await axios.post("http://127.0.0.1:8000/api/concours", form, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+
+    alert("Concours publié avec succès !");
+    setConcoursList((prev) => [response.data, ...prev]);
+    
+    // Réinitialiser le formulaire
+    setFormData({
+      title: "",
+      description: "",
+      date_lancement: "",
+      date_limite: "",
+      date_ecrit: "",
+      date_oral: "",
+      type_epreuve: "ecrit_oral",
+    });
+    setPdfFile(null);
+    
+  } catch (error) {
+    console.error("Erreur lors de la publication :", error);
+    
+    // Afficher plus de détails sur l'erreur
+    if (error.response) {
+      console.error("Réponse du serveur:", error.response.data);
+      console.error("Status:", error.response.status);
+      alert(`Erreur ${error.response.status}: ${error.response.data.message || 'Erreur lors de la publication du concours.'}`);
+    } else {
+      alert("Erreur réseau lors de la publication du concours.");
     }
   }
+};
 
   const handleSave = async () => {
     const formData = new FormData()
@@ -465,6 +538,7 @@ const GestionConcours = () => {
     formData.append("description", selectedConcours.description)
     formData.append("date_lancement", selectedConcours.date_lancement)
     formData.append("date_limite", selectedConcours.date_limite)
+    formData.append("type_epreuve", selectedConcours.type_epreuve)
     formData.append("date_ecrit", selectedConcours.date_ecrit)
     formData.append("date_oral", selectedConcours.date_oral)
 
@@ -501,7 +575,7 @@ const GestionConcours = () => {
     return date.toLocaleDateString("fr-FR", {
       day: "numeric",
       month: "short",
-      year: "numeric"
+      year: "numeric",
     })
   }
 
@@ -538,7 +612,10 @@ const GestionConcours = () => {
           {/* Section Concours en cours */}
           <StyledPaper elevation={3}>
             <SectionHeader>
-              <Typography variant="h5" sx={{ fontWeight: "bold", display: "flex", alignItems: "center", gap: 1 ,color: "#fff"}}>
+              <Typography
+                variant="h5"
+                sx={{ fontWeight: "bold", display: "flex", alignItems: "center", gap: 1, color: "#fff" }}
+              >
                 <CalendarMonth /> Concours en cours
               </Typography>
             </SectionHeader>
@@ -616,18 +693,31 @@ const GestionConcours = () => {
                             </Box>
 
                             <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                              <DateBadge
-                                icon={<CalendarMonth fontSize="small" />}
-                                label={`Écrit: ${formatDate(concours.date_ecrit)}`}
-                                color="primary"
-                                size="small"
-                              />
-                              <DateBadge
-                                icon={<CalendarMonth fontSize="small" />}
-                                label={`Oral: ${formatDate(concours.date_oral)}`}
-                                color="primary"
-                                size="small"
-                              />
+                              {concours.type_epreuve && (
+                                <DateBadge
+                                  icon={<AccessTime fontSize="small" />}
+                                  label={`Type: ${concours.type_epreuve === "ecrit" ? "Écrit" : concours.type_epreuve === "oral" ? "Oral" : "Écrit & Oral"}`}
+                                  color="secondary"
+                                  size="small"
+                                  sx={{ mb: 1 }}
+                                />
+                              )}
+                              {(concours.type_epreuve === "ecrit" || concours.type_epreuve === "ecrit_oral") && (
+                                <DateBadge
+                                  icon={<CalendarMonth fontSize="small" />}
+                                  label={`Écrit: ${formatDate(concours.date_ecrit)}`}
+                                  color="primary"
+                                  size="small"
+                                />
+                              )}
+                              {(concours.type_epreuve === "oral" || concours.type_epreuve === "ecrit_oral") && (
+                                <DateBadge
+                                  icon={<CalendarMonth fontSize="small" />}
+                                  label={`Oral: ${formatDate(concours.date_oral)}`}
+                                  color="primary"
+                                  size="small"
+                                />
+                              )}
                             </Box>
 
                             <Divider sx={{ my: 1.5 }} />
@@ -724,23 +814,22 @@ const GestionConcours = () => {
                     onChange={handlePageChange}
                     color="primary"
                     sx={{
-                        p: 1,
-                        bgcolor: "white",
-                        borderRadius: 10,
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-                        "& .MuiPaginationItem-root": {
+                      p: 1,
+                      bgcolor: "white",
+                      borderRadius: 10,
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                      "& .MuiPaginationItem-root": {
                         color: "#2C3E50",
-                        },
-                        "& .Mui-selected": {
+                      },
+                      "& .Mui-selected": {
                         backgroundColor: "#2C3E50",
                         color: "white",
                         "&:hover": {
-                            backgroundColor: "#1A252F", // Optionnel : survol
+                          backgroundColor: "#1A252F", // Optionnel : survol
                         },
-                        },
+                      },
                     }}
-                    />
-
+                  />
                 </Box>
               )}
             </CardContent>
@@ -749,7 +838,10 @@ const GestionConcours = () => {
           {/* Section Création de concours */}
           <StyledPaper elevation={3}>
             <SectionHeader>
-              <Typography variant="h5" sx={{ fontWeight: "bold", display: "flex", alignItems: "center", gap: 1 ,color: "#fff"}}>
+              <Typography
+                variant="h5"
+                sx={{ fontWeight: "bold", display: "flex", alignItems: "center", gap: 1, color: "#fff" }}
+              >
                 <Add /> Créer un nouveau concours
               </Typography>
             </SectionHeader>
@@ -823,32 +915,85 @@ const GestionConcours = () => {
                         sx={{ mb: 3, "& .MuiInputBase-root": { bgcolor: "white" } }}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        type="date"
-                        name="date_ecrit"
-                        value={formData.date_ecrit}
-                        onChange={handleInputChange}
-                        label="Date du concours écrit"
-                        variant="outlined"
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ mb: 3, "& .MuiInputBase-root": { bgcolor: "white" } }}
-                      />
+                    <Grid item xs={12}>
+                      <Box sx={{ mb: 3 }}>
+                        <Typography variant="body2" sx={{ mb: 1, fontWeight: 500, color: alpha("#2C3E50", 0.7) }}>
+                          Type d'épreuve
+                        </Typography>
+                        <Box sx={{ display: "flex", gap: 2 }}>
+                          <Button
+                            variant={
+                              formData.type_epreuve === "ecrit" || formData.type_epreuve === "ecrit_oral"
+                                ? "contained"
+                                : "outlined"
+                            }
+                            color="primary"
+                            onClick={() => {
+                              if (formData.type_epreuve === "ecrit") {
+                                setFormData({ ...formData, type_epreuve: "ecrit_oral" })
+                              } else if (formData.type_epreuve === "ecrit_oral") {
+                                setFormData({ ...formData, type_epreuve: "oral" })
+                              } else {
+                                setFormData({ ...formData, type_epreuve: "ecrit" })
+                              }
+                            }}
+                            sx={{ borderRadius: 2, flex: 1 }}
+                          >
+                            Épreuve Écrite
+                          </Button>
+                          <Button
+                            variant={
+                              formData.type_epreuve === "oral" || formData.type_epreuve === "ecrit_oral"
+                                ? "contained"
+                                : "outlined"
+                            }
+                            color="primary"
+                            onClick={() => {
+                              if (formData.type_epreuve === "oral") {
+                                setFormData({ ...formData, type_epreuve: "ecrit_oral" })
+                              } else if (formData.type_epreuve === "ecrit_oral") {
+                                setFormData({ ...formData, type_epreuve: "ecrit" })
+                              } else {
+                                setFormData({ ...formData, type_epreuve: "oral" })
+                              }
+                            }}
+                            sx={{ borderRadius: 2, flex: 1 }}
+                          >
+                            Épreuve Orale
+                          </Button>
+                        </Box>
+                      </Box>
                     </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        type="date"
-                        name="date_oral"
-                        value={formData.date_oral}
-                        onChange={handleInputChange}
-                        label="Date du concours oral"
-                        variant="outlined"
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ mb: 3, "& .MuiInputBase-root": { bgcolor: "white" } }}
-                      />
-                    </Grid>
+                    {(formData.type_epreuve === "ecrit" || formData.type_epreuve === "ecrit_oral") && (
+                      <Grid item xs={12} sm={formData.type_epreuve === "ecrit_oral" ? 6 : 12}>
+                        <TextField
+                          fullWidth
+                          type="date"
+                          name="date_ecrit"
+                          value={formData.date_ecrit}
+                          onChange={handleInputChange}
+                          label="Date du concours écrit"
+                          variant="outlined"
+                          InputLabelProps={{ shrink: true }}
+                          sx={{ mb: 3, "& .MuiInputBase-root": { bgcolor: "white" } }}
+                        />
+                      </Grid>
+                    )}
+                    {(formData.type_epreuve === "oral" || formData.type_epreuve === "ecrit_oral") && (
+                      <Grid item xs={12} sm={formData.type_epreuve === "ecrit_oral" ? 6 : 12}>
+                        <TextField
+                          fullWidth
+                          type="date"
+                          name="date_oral"
+                          value={formData.date_oral}
+                          onChange={handleInputChange}
+                          label="Date du concours oral"
+                          variant="outlined"
+                          InputLabelProps={{ shrink: true }}
+                          sx={{ mb: 3, "& .MuiInputBase-root": { bgcolor: "white" } }}
+                        />
+                      </Grid>
+                    )}
                   </Grid>
                 </Grid>
               </Grid>
@@ -916,7 +1061,10 @@ const GestionConcours = () => {
                 px: 3,
               }}
             >
-              <Typography variant="h6" sx={{ fontWeight: "bold", display: "flex", alignItems: "center", gap: 1, color: "#fff"}}>
+              <Typography
+                variant="h6"
+                sx={{ fontWeight: "bold", display: "flex", alignItems: "center", gap: 1, color: "#fff" }}
+              >
                 <Edit fontSize="small" /> Modifier le concours
               </Typography>
             </DialogTitle>
@@ -968,30 +1116,83 @@ const GestionConcours = () => {
                     sx={{ mb: 2, "& .MuiInputBase-root": { bgcolor: "white" } }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    margin="normal"
-                    fullWidth
-                    label="Date d'écrit"
-                    type="date"
-                    value={selectedConcours?.date_ecrit || ""}
-                    onChange={(e) => setSelectedConcours({ ...selectedConcours, date_ecrit: e.target.value })}
-                    InputLabelProps={{ shrink: true }}
-                    sx={{ mb: 2, "& .MuiInputBase-root": { bgcolor: "white" } }}
-                  />
+                <Grid item xs={12}>
+                  <Box sx={{ mb: 2, mt: 2 }}>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 500, color: alpha("#2C3E50", 0.7) }}>
+                      Type d'épreuve
+                    </Typography>
+                    <Box sx={{ display: "flex", gap: 2 }}>
+                      <Button
+                        variant={
+                          selectedConcours?.type_epreuve === "ecrit" || selectedConcours?.type_epreuve === "ecrit_oral"
+                            ? "contained"
+                            : "outlined"
+                        }
+                        color="primary"
+                        onClick={() => {
+                          if (selectedConcours?.type_epreuve === "ecrit") {
+                            setSelectedConcours({ ...selectedConcours, type_epreuve: "ecrit_oral" })
+                          } else if (selectedConcours?.type_epreuve === "ecrit_oral") {
+                            setSelectedConcours({ ...selectedConcours, type_epreuve: "ecrit" })
+                          } else {
+                            setSelectedConcours({ ...selectedConcours, type_epreuve: "ecrit" })
+                          }
+                        }}
+                        sx={{ borderRadius: 2, flex: 1 }}
+                      >
+                        Épreuve Écrite
+                      </Button>
+                      <Button
+                        variant={
+                          selectedConcours?.type_epreuve === "oral" || selectedConcours?.type_epreuve === "ecrit_oral"
+                            ? "contained"
+                            : "outlined"
+                        }
+                        color="primary"
+                        onClick={() => {
+                          if (selectedConcours?.type_epreuve === "oral") {
+                            setSelectedConcours({ ...selectedConcours, type_epreuve: "ecrit_oral" })
+                          } else if (selectedConcours?.type_epreuve === "ecrit_oral") {
+                            setSelectedConcours({ ...selectedConcours, type_epreuve: "ecrit" })
+                          } else {
+                            setSelectedConcours({ ...selectedConcours, type_epreuve: "oral" })
+                          }
+                        }}
+                        sx={{ borderRadius: 2, flex: 1 }}
+                      >
+                        Épreuve Orale
+                      </Button>
+                    </Box>
+                  </Box>
                 </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    margin="normal"
-                    fullWidth
-                    label="Date orale"
-                    type="date"
-                    value={selectedConcours?.date_oral || ""}
-                    onChange={(e) => setSelectedConcours({ ...selectedConcours, date_oral: e.target.value })}
-                    InputLabelProps={{ shrink: true }}
-                    sx={{ mb: 2, "& .MuiInputBase-root": { bgcolor: "white" } }}
-                  />
-                </Grid>
+                {(selectedConcours?.type_epreuve === "ecrit" || selectedConcours?.type_epreuve === "ecrit_oral") && (
+                  <Grid item xs={12} sm={selectedConcours?.type_epreuve === "ecrit_oral" ? 6 : 12}>
+                    <TextField
+                      margin="normal"
+                      fullWidth
+                      label="Date d'écrit"
+                      type="date"
+                      value={selectedConcours?.date_ecrit || ""}
+                      onChange={(e) => setSelectedConcours({ ...selectedConcours, date_ecrit: e.target.value })}
+                      InputLabelProps={{ shrink: true }}
+                      sx={{ mb: 2, "& .MuiInputBase-root": { bgcolor: "white" } }}
+                    />
+                  </Grid>
+                )}
+                {(selectedConcours?.type_epreuve === "oral" || selectedConcours?.type_epreuve === "ecrit_oral") && (
+                  <Grid item xs={12} sm={selectedConcours?.type_epreuve === "ecrit_oral" ? 6 : 12}>
+                    <TextField
+                      margin="normal"
+                      fullWidth
+                      label="Date orale"
+                      type="date"
+                      value={selectedConcours?.date_oral || ""}
+                      onChange={(e) => setSelectedConcours({ ...selectedConcours, date_oral: e.target.value })}
+                      InputLabelProps={{ shrink: true }}
+                      sx={{ mb: 2, "& .MuiInputBase-root": { bgcolor: "white" } }}
+                    />
+                  </Grid>
+                )}
                 <Grid item xs={12}>
                   <Box
                     sx={{

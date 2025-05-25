@@ -115,7 +115,8 @@ const PhaseNavigation = ({ phase, setPhase, phases }) => {
                 padding: 4,
                 backgroundColor: backgroundColor,
                 borderRadius: 4,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                mb: 3
             }}>
                 {phases.map((p, index) => (
                     <Box key={p.id} sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>

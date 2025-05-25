@@ -13,6 +13,7 @@ import {
     Typography,
     Paper,
     TextField,
+    Chip
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import axios from 'axios';
@@ -61,14 +62,15 @@ const CandidatTable = ({
         const baseColumns = [
             { id: 'name', label: 'Nom' },
             { id: 'email', label: 'Adresse E-mail Personnelle' },
-            
         ];
+
         if (phase === 'candidature' || phase === 'ecrits' || phase === 'oral' || phase === 'final') {
             baseColumns.push(
                 { id: 'anneeBac', label: 'Année d obtention du Bac' },
                 { id: 'filiere', label: 'Type de diplome' }
             );
         }
+
         if (phase === 'candidature') {
             baseColumns.push(
                 { id: 'average', label: 'Moyenne Calculée' },
@@ -81,7 +83,19 @@ const CandidatTable = ({
                 { id: 'statut', label: 'Statut' }
             );
         } else if (phase === 'final') {
-            baseColumns.push({ id: 'statut', label: 'Statut' });
+            // Colonnes spécifiques pour la phase finale
+            baseColumns.splice(0, 2, 
+                { id: 'rang', label: 'Liste' },
+                { id: 'rang_numero', label: 'Rang' },
+                { id: 'name', label: 'Nom' },
+                { id: 'prenom', label: 'Prénom' },
+                { id: 'email', label: 'Email' }
+            );
+            baseColumns.push(
+                { id: 'note_ecrite', label: 'Note Écrite' },
+                { id: 'note_orale', label: 'Note Orale' },
+                { id: 'score_merite', label: 'Score Mérite' }
+            );
         }
         return baseColumns;
     };
@@ -122,19 +136,34 @@ const CandidatTable = ({
                         {currentData
                             .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                             .map((row) => {
-                                // Extraction des valeurs spécifiques depuis le formulaire (valeursFormulaire)
-                                const nom = row.valeursFormulaire
-                                    ? row.valeursFormulaire.find(v => v.champ.nom === "Nom")?.valeur || 'N/A'
-                                    : 'N/A';
-                                const email = row.valeursFormulaire
-                                    ? row.valeursFormulaire.find(v => v.champ.nom === "Email" || v.champ.nom === "Adresse E-mail Personnelle")?.valeur || 'N/A'
-                                    : 'N/A';
-                                const anneeBac = row.valeursFormulaire
-                                    ? row.valeursFormulaire.find(v => v.champ.nom === "Année d obtention du Bac")?.valeur || 'N/A'
-                                    : 'N/A';
-                                const filiere = row.valeursFormulaire
-                                    ? row.valeursFormulaire.find(v => v.champ.nom === "Type de diplome")?.valeur || 'N/A'
-                                    : 'N/A';
+                                // Extraction des valeurs selon la phase
+                                let nom, email, anneeBac, filiere, prenom;
+
+                                if (phase === 'final') {
+                                    // Pour la phase finale, utiliser les données déjà formatées
+                                    nom = row.name;
+                                    prenom = row.prenom;
+                                    email = row.email;
+                                    anneeBac = row.anneeBac;
+                                    filiere = row.filiere;
+                                } else {
+                                    // Pour les autres phases, extraire depuis valeursFormulaire
+                                    nom = row.valeursFormulaire
+                                        ? row.valeursFormulaire.find(v => v.champ.nom === "Nom")?.valeur || 'N/A'
+                                        : 'N/A';
+                                    email = row.valeursFormulaire
+                                        ? row.valeursFormulaire.find(v => v.champ.nom === "Email" || v.champ.nom === "Adresse E-mail Personnelle")?.valeur || 'N/A'
+                                        : 'N/A';
+                                    anneeBac = row.valeursFormulaire
+                                        ? row.valeursFormulaire.find(v => v.champ.nom === "Année d obtention du Bac")?.valeur || 'N/A'
+                                        : 'N/A';
+                                    filiere = row.valeursFormulaire
+                                        ? row.valeursFormulaire.find(v => v.champ.nom === "Type de diplome")?.valeur || 'N/A'
+                                        : 'N/A';
+                                    prenom = row.valeursFormulaire
+                                        ? row.valeursFormulaire.find(v => v.champ.nom === "Prénom")?.valeur || ''
+                                        : '';
+                                }
 
                                 return (
                                     <TableRow
@@ -143,142 +172,177 @@ const CandidatTable = ({
                                         sx={{
                                             '&:last-child td, &:last-child th': { border: 0 },
                                             '&:hover': { backgroundColor: '#F5F5F5' },
+                                            // Couleur de fond pour la phase finale
+                                            backgroundColor: phase === 'final' 
+                                                ? (row.statut === 'Admis liste principale' ? '#f0f7ff' : '#fffbf0')
+                                                : 'inherit'
                                         }}
                                     >
-                                        {/* Nom (depuis le formulaire) */}
-                                        <TableCell>{nom}</TableCell>
-                                        {/* Email (depuis le formulaire) */}
-                                        <TableCell>{email}</TableCell>
-                                        {/* Année Bac */}
-                                        <TableCell>{anneeBac}</TableCell>
-                                        {/* Filière */}
-                                        <TableCell>{filiere}</TableCell>
-                                        {/* Moyenne ou Note */}
-                                        {phase === 'candidature' && (
-                                            <TableCell>
-                                                {calculateSelectionAverage ? calculateSelectionAverage(row) : 'N/A'}
-                                            </TableCell>
-                                        )}
-                                        {(phase === 'ecrits' || phase === 'oral') && (
-                                            <TableCell>
-                                                <TextField
-                                                    type="number"
-                                                    value={row.note || ''}
-                                                    onChange={(e) => {
-                                                        const newNote = e.target.value;
-                                                        if (phase === 'ecrits' && setEcritsData) {
-                                                            setEcritsData(prev =>
-                                                                prev.map(item =>
-                                                                    item.id === row.id
-                                                                        ? { ...item, note: newNote }
-                                                                        : item
-                                                                )
-                                                            );
-                                                            // Appeler la fonction pour mettre à jour la note dans le backend
-                                                            updateEcritNote(row.id, newNote);
-                                                        }
-                                                        if (phase === 'oral' && setOralData) {
-                                                            setOralData(prev =>
-                                                                prev.map(item =>
-                                                                    item.id === row.id
-                                                                        ? { ...item, note: newNote }
-                                                                        : item
-                                                                )
-                                                            );
-                                                            // Appeler la fonction pour mettre à jour la note dans le backend
-                                                            updateOralNote(row.id, newNote);
-                                                        }
-                                                    }}
-                                                    onBlur={(e) => {
-                                                        // Mettre à jour la note également lors de la perte de focus
-                                                        const newNote = e.target.value;
-                                                        if (phase === 'ecrits') {
-                                                            updateEcritNote(row.id, newNote);
-                                                        } else if (phase === 'oral') {
-                                                            updateOralNote(row.id, newNote);
-                                                        }
-                                                    }}
-                                                    size="small"
-                                                    inputProps={{
-                                                        step: "0.01",
-                                                        min: "0",
-                                                        max: "20"
-                                                    }}
-                                                    sx={{
-                                                        width: '100px',
-                                                        '& .MuiOutlinedInput-root': {
-                                                            '&.Mui-focused fieldset': {
-                                                                borderColor: primaryColor,
-                                                            },
-                                                        },
-                                                    }}
-                                                />
-                                            </TableCell>
-                                        )}
-                                        {/* Statut */}
-                                        <TableCell>
-                                            <Select
-                                                variant="standard"
-                                                value={row.statut || ''}
-                                                onChange={(e) => handleChangeStatus(row.id, e.target.value)}
-                                                sx={{
-                                                    minWidth: 200,
-                                                    color: getStatusColor(row.statut),
-                                                    fontWeight: 'bold',
-                                                }}
-                                                renderValue={(selected) => (
-                                                    <Box sx={{ color: getStatusColor(selected) }}>{selected || 'Sélectionner un statut'}</Box>
+                                        {phase === 'final' ? (
+                                            // Affichage spécifique pour la phase finale
+                                            <>
+                                                <TableCell>
+                                                    <Chip 
+                                                        label={row.rang} 
+                                                        color={row.statut === 'Admis liste principale' ? 'primary' : 'warning'}
+                                                        sx={{ 
+                                                            fontWeight: 'bold',
+                                                            backgroundColor: row.statut === 'Admis liste principale' ? primaryColor : '#FFA726'
+                                                        }}
+                                                    />
+                                                </TableCell>
+                                                <TableCell sx={{ fontWeight: 'bold' }}>{row.rang_numero}</TableCell>
+                                                <TableCell>{nom}</TableCell>
+                                                <TableCell>{prenom}</TableCell>
+                                                <TableCell>{email}</TableCell>
+                                                <TableCell>{anneeBac}</TableCell>
+                                                <TableCell>{filiere}</TableCell>
+                                                <TableCell>{row.note_ecrite || '-'}</TableCell>
+                                                <TableCell>{row.note_orale || '-'}</TableCell>
+                                                <TableCell sx={{ fontWeight: 'bold' }}>{row.score_merite}</TableCell>
+                                            </>
+                                        ) : (
+                                            // Affichage pour les autres phases
+                                            <>
+                                                {/* Nom */}
+                                                <TableCell>{nom}</TableCell>
+                                                {/* Email */}
+                                                <TableCell>{email}</TableCell>
+                                                {/* Année Bac */}
+                                                <TableCell>{anneeBac}</TableCell>
+                                                {/* Filière */}
+                                                <TableCell>{filiere}</TableCell>
+                                                
+                                                {/* Moyenne ou Note */}
+                                                {phase === 'candidature' && (
+                                                    <TableCell>
+                                                        {calculateSelectionAverage ? calculateSelectionAverage(row) : 'N/A'}
+                                                    </TableCell>
                                                 )}
-                                            >
-                                                <MenuItem value="">Sélectionner un statut</MenuItem>
-                                                <MenuItem value="En attente">En attente</MenuItem>
-                                                <MenuItem value="Admis epreuve ecrite" sx={{ color: 'success.main' }}>
-                                                    Admis à l'épreuve écrite
-                                                </MenuItem>
-                                                <MenuItem value="Candidature rejetee" sx={{ color: accentColor }}>
-                                                    Candidature rejetée
-                                                </MenuItem>
-                                                <MenuItem value="Admis epreuve orale" sx={{ color: 'success.main' }}>
-                                                    Admis à l'épreuve orale
-                                                </MenuItem>
-                                                <MenuItem value="Non Admis" sx={{ color: accentColor }}>
-                                                    Non Admis
-                                                </MenuItem>
-                                                <MenuItem value="Admis liste principale" sx={{ color: 'success.main' }}>
-                                                    Admis en liste principale
-                                                </MenuItem>
-                                                <MenuItem value="Admis liste attente" sx={{ color: 'warning.main' }}>
-                                                    Admis en liste d'attente
-                                                </MenuItem>
-                                            </Select>
-                                        </TableCell>
-                                        {/* Documents */}
-                                        {phase === 'candidature' && (
-                                            <TableCell>
-                                                <Button
-                                                    onClick={() => handleOpenDialog(row.id)}
-                                                    variant="contained"
-                                                    color="primary"
-                                                    size="small"
-                                                    sx={{
-                                                        textTransform: 'none',
-                                                        fontWeight: 600,
-                                                        borderRadius: 30,
-                                                        padding: '8px 16px',
-                                                        background: `linear-gradient(45deg, ${primaryColor} 30%, ${primaryColor}CC 90%)`,
-                                                        '&:hover': {
-                                                            background: `linear-gradient(45deg, ${primaryColor}CC 30%, ${primaryColor} 90%)`,
-                                                            transform: 'translateY(-3px)',
-                                                            boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-                                                        },
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: 1,
-                                                    }}
-                                                >
-                                                    <VisibilityIcon sx={{ fontSize: 20 }} /> Voir
-                                                </Button>
-                                            </TableCell>
+                                                
+                                                {(phase === 'ecrits' || phase === 'oral') && (
+                                                    <TableCell>
+                                                        <TextField
+                                                            type="number"
+                                                            value={row.note || ''}
+                                                            onChange={(e) => {
+                                                                const newNote = e.target.value;
+                                                                if (phase === 'ecrits' && setEcritsData) {
+                                                                    setEcritsData(prev =>
+                                                                        prev.map(item =>
+                                                                            item.id === row.id
+                                                                                ? { ...item, note: newNote }
+                                                                                : item
+                                                                        )
+                                                                    );
+                                                                    updateEcritNote(row.id, newNote);
+                                                                }
+                                                                if (phase === 'oral' && setOralData) {
+                                                                    setOralData(prev =>
+                                                                        prev.map(item =>
+                                                                            item.id === row.id
+                                                                                ? { ...item, note: newNote }
+                                                                                : item
+                                                                        )
+                                                                    );
+                                                                    updateOralNote(row.id, newNote);
+                                                                }
+                                                            }}
+                                                            onBlur={(e) => {
+                                                                const newNote = e.target.value;
+                                                                if (phase === 'ecrits') {
+                                                                    updateEcritNote(row.id, newNote);
+                                                                } else if (phase === 'oral') {
+                                                                    updateOralNote(row.id, newNote);
+                                                                }
+                                                            }}
+                                                            size="small"
+                                                            inputProps={{
+                                                                step: "0.01",
+                                                                min: "0",
+                                                                max: "20"
+                                                            }}
+                                                            sx={{
+                                                                width: '100px',
+                                                                '& .MuiOutlinedInput-root': {
+                                                                    '&.Mui-focused fieldset': {
+                                                                        borderColor: primaryColor,
+                                                                    },
+                                                                },
+                                                            }}
+                                                        />
+                                                    </TableCell>
+                                                )}
+                                                
+                                                {/* Statut */}
+                                                {phase !== 'final' && (
+                                                    <TableCell>
+                                                        <Select
+                                                            variant="standard"
+                                                            value={row.statut || ''}
+                                                            onChange={(e) => handleChangeStatus(row.id, e.target.value)}
+                                                            sx={{
+                                                                minWidth: 200,
+                                                                color: getStatusColor(row.statut),
+                                                                fontWeight: 'bold',
+                                                            }}
+                                                            renderValue={(selected) => (
+                                                                <Box sx={{ color: getStatusColor(selected) }}>{selected || 'Sélectionner un statut'}</Box>
+                                                            )}
+                                                        >
+                                                            <MenuItem value="">Sélectionner un statut</MenuItem>
+                                                            <MenuItem value="En attente">En attente</MenuItem>
+                                                            <MenuItem value="Admis epreuve ecrite" sx={{ color: 'success.main' }}>
+                                                                Admis à l'épreuve écrite
+                                                            </MenuItem>
+                                                            <MenuItem value="Candidature rejetee" sx={{ color: accentColor }}>
+                                                                Candidature rejetée
+                                                            </MenuItem>
+                                                            <MenuItem value="Admis epreuve orale" sx={{ color: 'success.main' }}>
+                                                                Admis à l'épreuve orale
+                                                            </MenuItem>
+                                                            <MenuItem value="Non Admis" sx={{ color: accentColor }}>
+                                                                Non Admis
+                                                            </MenuItem>
+                                                            <MenuItem value="Admis liste principale" sx={{ color: 'success.main' }}>
+                                                                Admis en liste principale
+                                                            </MenuItem>
+                                                            <MenuItem value="Admis liste attente" sx={{ color: 'warning.main' }}>
+                                                                Admis en liste d'attente
+                                                            </MenuItem>
+                                                        </Select>
+                                                    </TableCell>
+                                                )}
+                                                
+                                                {/* Documents */}
+                                                {phase === 'candidature' && (
+                                                    <TableCell>
+                                                        <Button
+                                                            onClick={() => handleOpenDialog(row.id)}
+                                                            variant="contained"
+                                                            color="primary"
+                                                            size="small"
+                                                            sx={{
+                                                                textTransform: 'none',
+                                                                fontWeight: 600,
+                                                                borderRadius: 30,
+                                                                padding: '8px 16px',
+                                                                background: `linear-gradient(45deg, ${primaryColor} 30%, ${primaryColor}CC 90%)`,
+                                                                '&:hover': {
+                                                                    background: `linear-gradient(45deg, ${primaryColor}CC 30%, ${primaryColor} 90%)`,
+                                                                    transform: 'translateY(-3px)',
+                                                                    boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                                                                },
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: 1,
+                                                            }}
+                                                        >
+                                                            <VisibilityIcon sx={{ fontSize: 20 }} /> Voir
+                                                        </Button>
+                                                    </TableCell>
+                                                )}
+                                            </>
                                         )}
                                     </TableRow>
                                 );

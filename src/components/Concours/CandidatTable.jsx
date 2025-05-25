@@ -195,7 +195,7 @@ const CandidatTable = ({
                                                 <TableCell>{nom}</TableCell>
                                                 <TableCell>{prenom}</TableCell>
                                                 <TableCell>{email}</TableCell>
-                                                <TableCell>{anneeBac}</TableCell>
+                                               
                                                 <TableCell>{filiere}</TableCell>
                                                 <TableCell>{row.note_ecrite || '-'}</TableCell>
                                                 <TableCell>{row.note_orale || '-'}</TableCell>

@@ -215,7 +215,8 @@ const GestionCandidaturesPhases = () => {
     // Charger les données pour la phase finale
     useEffect(() => {
         if (selectedConcoursId && phase === 'final') {
-            axios.get(`http://localhost:8000/api/concours/${selectedConcoursId}/admissions-finales`)
+           axios.get(`http://localhost:8000/api/concours/${selectedConcoursId}/final/admissions`)
+     
                 .then(response => {
                     console.log("Admissions finales:", response.data);
                     setFinalAdmissionsData(response.data);

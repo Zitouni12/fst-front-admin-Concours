@@ -2,6 +2,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Box, Typography, Paper, TablePagination, Button, Container, Grid, CssBaseline, Chip } from '@mui/material';
 import { styled, createTheme, ThemeProvider } from "@mui/material/styles"
+import { Switch } from '@mui/material'
 import * as XLSX from 'xlsx';
 import FiliereFilter from '../../components/Concours/FiliereFilter';
 import PhaseNavigation from '../../components/Concours/PhaseNavigation';
@@ -10,7 +11,7 @@ import ImportExcelData from '../../components/Concours/ImportExcelData';
 import ImportExcelNotesFormat from '../../components/Concours/ImportExcelData';
 import AutomaticAdmission from '../../components/Concours/AutomaticAdmission';
 import CandidatTable from '../../components/Concours/CandidatTable';
-//import FinalAdmissionsTable from '../../components/Concours/FinalAdmissionsTable';
+import FinalAdmissionsTable from '../../components/Concours/FinalAdmissionsTable';
 import DocumentDialog from '../../components/Concours/DocumentDialog';
 import axios from 'axios';
 
@@ -110,6 +111,9 @@ const GestionCandidaturesPhases = () => {
     const [openDialog, setOpenDialog] = useState(false);
     const [selectedDocs, setSelectedDocs] = useState([]);
     const [selectedInscriptionId, setSelectedInscriptionId] = useState(null);
+   /////////
+   const [scoreMeriteConfig, setScoreMeriteConfig] = useState(null);
+  const [sortByNote, setSortByNote] = useState(false); // NOUVEAU STATE pour le tri par note
 
     // Fonction pour générer les phases selon le type d'épreuve
     const getAvailablePhases = (typeEpreuve) => {
@@ -507,103 +511,128 @@ const GestionCandidaturesPhases = () => {
 
     const currentDataSetter = getDataSetter();
 
-    const getDisplayedData = () => {
-        let dataToDisplay = [];
-        
-        if (phase === 'candidature' && candidatureData.length > 0) {
-            dataToDisplay = candidatureData.map(candidat => {
-                // Extraire les valeurs importantes pour l'affichage
-                const anneeBac = candidat.valeursFormulaire.find(
-                    v => v.champ.nom === "Année d obtention du Bac"
-                )?.valeur || 'N/A';
-                
-                const filiere = candidat.valeursFormulaire.find(
-                    v => v.champ.nom === "Type de diplome" || v.champ.nom === "Filière"
-                )?.valeur || 'N/A';
-                
-                // Créer un objet avec toutes les valeurs de formulaire pour faciliter l'accès
-                const formValues = {};
-                candidat.valeursFormulaire.forEach(v => {
-                    formValues[v.champ.nom] = v.valeur;
-                });
+   const getDisplayedData = () => {
+    let dataToDisplay = [];
+    
+    if (phase === 'candidature' && candidatureData.length > 0) {
+        dataToDisplay = candidatureData.map(candidat => {
+            // Extraire les valeurs importantes pour l'affichage
+            const anneeBac = candidat.valeursFormulaire.find(
+                v => v.champ.nom === "Année d obtention du Bac"
+            )?.valeur || 'N/A';
+            
+            const filiere = candidat.valeursFormulaire.find(
+                v => v.champ.nom === "Type de diplome" || v.champ.nom === "Filière"
+            )?.valeur || 'N/A';
+            
+            // Créer un objet avec toutes les valeurs de formulaire pour faciliter l'accès
+            const formValues = {};
+            candidat.valeursFormulaire.forEach(v => {
+                formValues[v.champ.nom] = v.valeur;
+            });
 
+            return {
+                ...candidat,
+                name: candidat.candidat.name,
+                email: candidat.candidat.email,
+                telephone: candidat.candidat.telephone,
+                filiere: filiere,
+                anneeBac: anneeBac,
+                formValues: formValues,
                 
-                return {
-                    ...candidat,
-                    name: candidat.candidat.name,
-                    email: candidat.candidat.email,
-                    telephone: candidat.candidat.telephone,
-                    filiere: filiere,
-                    anneeBac: anneeBac,
-                    formValues: formValues,
-                    
-                    // AJOUT : Calculer la moyenne avec bonus ici
-                    calculatedAverage: calculateSelectionAverage(candidat),
-                    // Ajouter les documents pour l'affichage
-                    documents: candidat.valeursFormulaire
-                        .filter(v => v.champ.type === 'Fichier')
-                        .map(v => v.valeur)
-                };
-            });
-            
-            // Trier par moyenne si demandé
-            if (sortByAverage && selectedFields.length > 0) {
-                dataToDisplay = [...dataToDisplay].sort((a, b) => {
-                    const avgA = a.calculatedAverage; // Utiliser la moyenne pré-calculée
-                    const avgB = b.calculatedAverage;
-                    if (avgA === '') return 1;
-                    if (avgB === '') return -1;
-                    return parseFloat(avgB) - parseFloat(avgA);
-                });
-            }
+                // Calculer la moyenne avec bonus ici
+                calculatedAverage: calculateSelectionAverage(candidat),
+                // Ajouter les documents pour l'affichage
+                documents: candidat.valeursFormulaire
+                    .filter(v => v.champ.type === 'Fichier')
+                    .map(v => v.valeur)
+            };
+        });
         
-        } else if (phase === 'ecrits' && ecritsData.length > 0) {
-            dataToDisplay = ecritsData;
-        } else if (phase === 'oral' && oralData.length > 0) {
-            dataToDisplay = oralData;
-        } else if (phase === 'final' && finalAdmissionsData.length > 0) {
-            dataToDisplay = finalAdmissionsData.map(admission => {
-                // Extraire les valeurs importantes pour l'affichage
-                const anneeBac = admission.valeursFormulaire.find(
-                    v => v.champ.nom === "Année d obtention du Bac"
-                )?.valeur || 'N/A';
-                
-                const filiere = admission.valeursFormulaire.find(
-                    v => v.champ.nom === "Type de diplome" || v.champ.nom === "Filière"
-                )?.valeur || 'N/A';
-                
-                // Extraire le nom et prénom
-                const nom = admission.valeursFormulaire.find(v => v.champ.nom === "Nom")?.valeur || admission.candidat.name;
-                const prenom = admission.valeursFormulaire.find(v => v.champ.nom === "Prénom")?.valeur || '';
-                const email = admission.valeursFormulaire.find(v => v.champ.nom === "Email" || v.champ.nom === "Adresse E-mail Personnelle")?.valeur || admission.candidat.email;
-                
-                return {
-                    ...admission,
-                    name: nom,
-                    prenom: prenom,
-                    email: email,
-                    filiere: filiere,
-                    anneeBac: anneeBac,
-                    rang: admission.statut === 'Admis liste principale' ? 'LP' : 'LA',
-                    rang_numero: 0 // Sera calculé ci-dessous
-                };
-            });
-            
-            // Calculer le rang dans chaque liste
-            let rangLP = 1;
-            let rangLA = 1;
-            
-            dataToDisplay.forEach(item => {
-                if (item.statut === 'Admis liste principale') {
-                    item.rang_numero = rangLP++;
-                } else if (item.statut === 'Admis liste attente') {
-                    item.rang_numero = rangLA++;
-                }
+        // Trier par moyenne si demandé
+        if (sortByAverage && selectedFields.length > 0) {
+            dataToDisplay = [...dataToDisplay].sort((a, b) => {
+                const avgA = a.calculatedAverage;
+                const avgB = b.calculatedAverage;
+                if (avgA === '') return 1;
+                if (avgB === '') return -1;
+                return parseFloat(avgB) - parseFloat(avgA);
             });
         }
+    
+    } else if (phase === 'ecrits' && ecritsData.length > 0) {
+        dataToDisplay = ecritsData;
+        // NOUVEAU : Tri par note écrite si demandé
+        if (sortByNote) {
+            dataToDisplay = [...dataToDisplay].sort((a, b) => {
+                const noteA = parseFloat(a.note) || 0;
+                const noteB = parseFloat(b.note) || 0;
+                return noteB - noteA;
+            });
+        }
+    } else if (phase === 'oral' && oralData.length > 0) {
+        dataToDisplay = oralData;
+        // NOUVEAU : Tri par note orale si demandé
+        if (sortByNote) {
+            dataToDisplay = [...dataToDisplay].sort((a, b) => {
+                const noteA = parseFloat(a.note) || 0;
+                const noteB = parseFloat(b.note) || 0;
+                return noteB - noteA;
+            });
+        }
+    } else if (phase === 'final' && finalAdmissionsData.length > 0) {
+        dataToDisplay = finalAdmissionsData.map(admission => {
+            // Extraire les valeurs importantes pour l'affichage
+            const anneeBac = admission.valeursFormulaire?.find(
+                v => v.champ && v.champ.nom === "Année d obtention du Bac"
+            )?.valeur || 'N/A';
+            
+            const filiere = admission.valeursFormulaire?.find(
+                v => v.champ && (v.champ.nom === "Type de diplome" || v.champ.nom === "Filière")
+            )?.valeur || 'N/A';
+            
+            // Extraire le nom et prénom
+            const nom = admission.valeursFormulaire?.find(v => v.champ && v.champ.nom === "Nom")?.valeur || admission.candidat?.name || 'N/A';
+            const prenom = admission.valeursFormulaire?.find(v => v.champ && v.champ.nom === "Prénom")?.valeur || '';
+            const email = admission.valeursFormulaire?.find(v => v.champ && (v.champ.nom === "Email" || v.champ.nom === "Adresse E-mail Personnelle"))?.valeur || admission.candidat?.email || 'N/A';
+            
+            return {
+                ...admission,
+                name: nom,
+                prenom: prenom,
+                email: email,
+                filiere: filiere,
+                anneeBac: anneeBac,
+                rang: admission.statut === 'Admis liste principale' ? 'LP' : 'LA',
+                rang_numero: 0 // Sera calculé ci-dessous
+            };
+        });
+        
+        // NOUVEAU : Tri par score mérite si demandé
+        if (sortByNote) {
+            dataToDisplay = [...dataToDisplay].sort((a, b) => {
+                const scoreA = parseFloat(a.score_merite) || 0;
+                const scoreB = parseFloat(b.score_merite) || 0;
+                return scoreB - scoreA;
+            });
+        }
+        
+        // Calculer le rang dans chaque liste
+        let rangLP = 1;
+        let rangLA = 1;
+        
+        dataToDisplay.forEach(item => {
+            if (item.statut === 'Admis liste principale') {
+                item.rang_numero = rangLP++;
+            } else if (item.statut === 'Admis liste attente') {
+                item.rang_numero = rangLA++;
+            }
+        });
+    }
 
-        return dataToDisplay;
-    };
+    return dataToDisplay;
+};
+
 
     const displayedData = getDisplayedData();
 
@@ -655,14 +684,23 @@ const GestionCandidaturesPhases = () => {
         if (!selectedConcoursId) return;
         
         let url;
-        if (phase === 'candidature' || phase === 'final') {
+        if (phase === 'candidature') {
             // Utilise la route existante pour les phases candidature et final
             url = `http://localhost:8000/api/concours/${selectedConcoursId}/resultats/export?phase=${phase}`;
             
             // Ajouter le statut comme paramètre supplémentaire
             if (statut) {
                 url += `&statut=${encodeURIComponent(statut)}`;
-            }
+            } 
+         } else if (phase === 'final') {
+            // Utilise la route existante pour les phases candidature et final
+            url = `http://localhost:8000/api/concours/${selectedConcoursId}/final/export`;
+            
+            // Ajouter le statut comme paramètre supplémentaire
+            //if (statut) {
+            //    url += `&statut=${encodeURIComponent(statut)}`;
+           // }
+        
         } else if (phase === 'ecrits') {
             // Utilise la route spécifique pour les épreuves écrites
             url = `http://localhost:8000/api/concours/${selectedConcoursId}/ecrits/export`;
@@ -689,9 +727,9 @@ const GestionCandidaturesPhases = () => {
             link.href = blobUrl;
             
             // Nom de fichier selon la phase
-            let filename = 'Export_Candidats.xlsx';
-            if (phase === 'ecrits') filename = 'Export_Epreuves_Ecrites.xlsx';
-            else if (phase === 'oral') filename = 'Export_Epreuves_Orales.xlsx';
+            let filename = 'Candidats_Candidature_Admis.xlsx';
+            if (phase === 'ecrits') filename = 'Candidats_Admis_Epreuves_Ecrites.xlsx';
+            else if (phase === 'oral') filename = 'Candidats_Admis_Epreuves_Orales.xlsx';
             else if (statut && typeof statut === 'string') {
                 filename = `Export_${statut.replace(/\s+/g, '_')}.xlsx`;
             }
@@ -716,7 +754,7 @@ const GestionCandidaturesPhases = () => {
         setSelectedDocs([]);
     };
 
-    // Dans GestionCandidaturesPhases.jsx
+
     const forceRefresh = () => {
       console.log("Force refresh appelé avec formule:", extraFormula);
       if (phase === 'candidature') {
@@ -737,196 +775,233 @@ const GestionCandidaturesPhases = () => {
     // Obtenir les phases disponibles pour le concours sélectionné
     const availablePhases = selectedConcours ? getAvailablePhases(selectedConcours.type_epreuve) : [];
 
+    
 
-// Fonction pour générer les résultats finaux
-    const handleGenerateFinalResults = async () => {
-        if (!selectedConcoursId) return;
+    // Fonction pour configurer le Score Mérite
+const handleConfigureScoreMerite = async (config) => {
+    if (!selectedConcoursId) return;
+    
+    try {
+        const response = await axios.post(
+            `http://localhost:8000/api/concours/${selectedConcoursId}/final/configure-score-merite`,
+            config
+        );
         
-        const nombreListePrincipale = prompt("Nombre de candidats en liste principale:", "10");
-        const nombreListeAttente = prompt("Nombre de candidats en liste d'attente:", "5");
+        setScoreMeriteConfig(config);
         
-        if (!nombreListePrincipale || !nombreListeAttente) return;
+        // Recharger les données de la phase finale
+        if (phase === 'final') {
+            axios.get(`http://localhost:8000/api/concours/${selectedConcoursId}/final/admissions`)
+                .then(response => {
+                    setFinalAdmissionsData(response.data);
+                });
+        }
         
-        try {
-            const response = await axios.post(
-                `http://localhost:8000/api/concours/${selectedConcoursId}/generer-resultats-finaux`,
-                {
-                    nombre_liste_principale: parseInt(nombreListePrincipale),
-                    nombre_liste_attente: parseInt(nombreListeAttente)
-                }
-            );
-            
-            alert("Résultats finaux générés avec succès !");
-            
-            // Recharger les données de la phase finale
-            if (phase === 'final') {
-                axios.get(`http://localhost:8000/api/concours/${selectedConcoursId}/admissions-finales`)
-                    .then(response => {
-                        setFinalAdmissionsData(response.data);
-                    });
+        alert(`Configuration appliquée avec succès ! ${response.data.candidats_updated} candidats mis à jour.`);
+    } catch (error) {
+        console.error("Erreur lors de la configuration du Score Mérite:", error);
+        alert("Erreur lors de la configuration du Score Mérite.");
+    }
+};
+
+ // NOUVELLE FONCTION pour gérer le tri par note selon la phase
+    const handleSortByNote = (enabled) => {
+        setSortByNote(enabled);
+        
+        // Recharger les données triées selon la phase
+        if (enabled) {
+            if (phase === 'ecrits' && ecritsData.length > 0) {
+                const sortedData = [...ecritsData].sort((a, b) => {
+                    const noteA = parseFloat(a.note) || 0;
+                    const noteB = parseFloat(b.note) || 0;
+                    return noteB - noteA; // Tri décroissant
+                });
+                setEcritsData(sortedData);
+            } else if (phase === 'oral' && oralData.length > 0) {
+                const sortedData = [...oralData].sort((a, b) => {
+                    const noteA = parseFloat(a.note) || 0;
+                    const noteB = parseFloat(b.note) || 0;
+                    return noteB - noteA; // Tri décroissant
+                });
+                setOralData(sortedData);
+            } else if (phase === 'final' && finalAdmissionsData.length > 0) {
+                const sortedData = [...finalAdmissionsData].sort((a, b) => {
+                    const scoreA = parseFloat(a.score_merite) || 0;
+                    const scoreB = parseFloat(b.score_merite) || 0;
+                    return scoreB - scoreA; // Tri décroissant
+                });
+                setFinalAdmissionsData(sortedData);
             }
-            
-        } catch (error) {
-            console.error("Erreur lors de la génération des résultats finaux:", error);
-            alert("Erreur lors de la génération des résultats finaux.");
         }
     };
 
     return (
-        <ThemeProvider theme={theme}>
-            <CssBaseline />
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 4 }}>
-                <FiliereFilter
-                    filiereFilter={selectedConcoursId}
-                    setFiliereFilter={setSelectedConcoursId}
-                    afficherListe={afficherListe}
-                    setAfficherListe={setAfficherListe}
-                    filieres={Array.isArray(concours) ? concours.map(c => ({ id: c.id, nom: c.title })) : []}
-                />
-                
-                {selectedConcoursId && selectedConcours && (
-                    <Paper sx={{ p: 4, backgroundColor: "white", borderRadius: 2, boxShadow: 3, width: '100%' }}>
-                        <Typography variant="h4" sx={{ mb: 3, textAlign: 'center', fontWeight: 'bold' }}>
-                            Gestion des Candidatures - {selectedConcours.title}
-                        </Typography>
+    <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 4 }}>
+            <FiliereFilter
+                filiereFilter={selectedConcoursId}
+                setFiliereFilter={setSelectedConcoursId}
+                afficherListe={afficherListe}
+                setAfficherListe={setAfficherListe}
+                filieres={Array.isArray(concours) ? concours.map(c => ({ id: c.id, nom: c.title })) : []}
+            />
+            
+            {selectedConcoursId && selectedConcours && (
+                <Paper sx={{ p: 4, backgroundColor: "white", borderRadius: 2, boxShadow: 3, width: '100%' }}>
+                    <Typography variant="h4" sx={{ mb: 3, textAlign: 'center', fontWeight: 'bold' }}>
+                        Gestion des Candidatures - {selectedConcours.title}
+                    </Typography>
 
-                        {/* Affichage du type d'épreuve */}
-                        <Box sx={{ mb: 2, textAlign: 'center' }}>
-                            <Chip 
-                                label={`Type d'épreuve: ${
-                                    selectedConcours.type_epreuve === 'ecrit' ? 'Écrite' :
-                                    selectedConcours.type_epreuve === 'oral' ? 'Orale' :
-                                    'Écrite et Orale'
-                                }`}
-                                color="primary"
-                                sx={{ 
-                                    fontWeight: 600,
-                                    backgroundColor: primaryColor,
-                                    color: 'white'
-                                }}
-                            />
-                        </Box>
-
-                        <PhaseNavigation 
-                            phase={phase} 
-                            setPhase={setPhase} 
-                            phases={availablePhases} 
-                        />
-
-                        {phase === 'ecrits' && (
-                            <>
-                                <ImportExcelNotesFormat phase={phase} handleImportNotes={handleImportNotesFromExcel} />
-                            </>
-                        )}
-
-                        {phase === 'oral' && (
-                            <>
-                                <ImportExcelNotesFormat phase={phase} handleImportNotes={handleImportOralNotesFromExcel} />
-                            </>
-                        )}
-
-                        
-
-                        {phase !== 'final' && (
-                            <AutomaticAdmission
-                                autoAdmitCount={autoAdmitCount}
-                                setAutoAdmitCount={setAutoAdmitCount}
-                                handleAutomaticAdmission={handleAutomaticAdmission}
-                            />
-                        )}
-                        
-                        {phase === 'candidature' && (
-                            <CandidatureActions
-                                key={selectedConcoursId}
-                                selectedFields={selectedFields}
-                                handleFieldChange={handleFieldChange}
-                                extraFormula={extraFormula}
-                                setExtraFormula={setExtraFormula}
-                                sortByAverage={sortByAverage}
-                                setSortByAverage={setSortByAverage}
-                                dynamicFields={champsConcours.filter(champ => 
-                                    champ.nom.includes('Note Semestre') || 
-                                    champ.nom.includes('Note S') ||
-                                    champ.categorie === 'Académique'
-                                )}
-                                forceRefresh={forceRefresh}
-                            />
-                        )}
-
-                      
-                            <CandidatTable
-                                key={selectedFields.join('-')}
-                                currentData={displayedData}
-                                page={page}
-                                rowsPerPage={rowsPerPage}
-                                handleChangeStatus={
-                                    phase === 'ecrits'
-                                        ? handleChangeEcritStatus
-                                        : phase === 'oral'
-                                            ? handleChangeOralStatus
-                                            : handleChangeStatus
-                                }
-                                getStatusColor={getStatusColor}
-                                phase={phase}
-                                calculateSelectionAverage={calculateSelectionAverage}
-                                handleOpenDialog={handleOpenDialog}
-                                setEcritsData={setEcritsData}
-                                setOralData={setOralData}
-                                dynamicFields={champsConcours.filter(champ => 
-                                    champ.nom.includes('Semestre') || 
-                                    champ.categorie === 'Académique'
-                                )}
-                                selectedConcoursId={selectedConcoursId}
-                                selectedFields={selectedFields}
-                            />
-                        
-                        
-                        <TablePagination
-                            rowsPerPageOptions={[5, 10, 25, 50]}
-                            component="div"
-                            count={displayedData.length}
-                            rowsPerPage={rowsPerPage}
-                            page={page}
-                            onPageChange={(event, newPage) => setPage(newPage)}
-                            onRowsPerPageChange={(event) => {
-                                setRowsPerPage(parseInt(event.target.value, 10));
-                                setPage(0);
+                    {/* Affichage du type d'épreuve */}
+                    <Box sx={{ mb: 2, textAlign: 'center' }}>
+                        <Chip 
+                            label={`Type d'épreuve: ${
+                                selectedConcours.type_epreuve === 'ecrit' ? 'Écrite' :
+                                selectedConcours.type_epreuve === 'oral' ? 'Orale' :
+                                'Écrite et Orale'
+                            }`}
+                            color="primary"
+                            sx={{ 
+                                fontWeight: 600,
+                                backgroundColor: primaryColor,
+                                color: 'white'
                             }}
                         />
+                    </Box>
 
-                        <DocumentDialog
-                            openDialog={openDialog}
-                            handleCloseDialog={handleCloseDialog}
-                            selectedDocs={selectedDocs}
+                    <PhaseNavigation 
+                        phase={phase} 
+                        setPhase={setPhase} 
+                        phases={availablePhases} 
+                    />
+
+                    {phase === 'ecrits' && (
+                        <>
+                            <ImportExcelNotesFormat phase={phase} handleImportNotes={handleImportNotesFromExcel} />
+                        </>
+                    )}
+
+                    {phase === 'oral' && (
+                        <>
+                            <ImportExcelNotesFormat phase={phase} handleImportNotes={handleImportOralNotesFromExcel} />
+                        </>
+                    )}
+
+                    {phase !== 'final' && (
+                        <AutomaticAdmission
+                            autoAdmitCount={autoAdmitCount}
+                            setAutoAdmitCount={setAutoAdmitCount}
+                            handleAutomaticAdmission={handleAutomaticAdmission}
                         />
+                    )}
+                    
+                    {phase === 'candidature' && (
+                        <CandidatureActions
+                            key={selectedConcoursId}
+                            selectedFields={selectedFields}
+                            handleFieldChange={handleFieldChange}
+                            extraFormula={extraFormula}
+                            setExtraFormula={setExtraFormula}
+                            sortByAverage={sortByAverage}
+                            setSortByAverage={setSortByAverage}
+                            dynamicFields={champsConcours.filter(champ => 
+                                champ.nom.includes('Note Semestre') || 
+                                champ.nom.includes('Note S') ||
+                                champ.categorie === 'Académique'
+                            )}
+                            forceRefresh={forceRefresh}
+                        />
+                    )}
 
-                        {phase !== 'final' && (
-                            <Button variant="contained" onClick={handleExportExcel} sx={{ mt: 3 }}>
-                                Exporter les candidats admis
+                   
+                    {phase === 'final' ? (
+                        <FinalAdmissionsTable
+                            currentData={displayedData}
+                            page={page}
+                            rowsPerPage={rowsPerPage}
+                            getStatusColor={getStatusColor}
+                            onConfigureScoreMerite={handleConfigureScoreMerite}
+                            scoreMeriteConfig={scoreMeriteConfig}
+                            sortByNote={sortByNote}
+                            onSortByNote={setSortByNote}
+                        />
+                    ) : (
+                        <CandidatTable
+                            key={selectedFields.join('-')}
+                            currentData={displayedData}
+                            page={page}
+                            rowsPerPage={rowsPerPage}
+                            handleChangeStatus={
+                                phase === 'ecrits'
+                                    ? handleChangeEcritStatus
+                                    : phase === 'oral'
+                                        ? handleChangeOralStatus
+                                        : handleChangeStatus
+                            }
+                            getStatusColor={getStatusColor}
+                            phase={phase}
+                            calculateSelectionAverage={calculateSelectionAverage}
+                            handleOpenDialog={handleOpenDialog}
+                            setEcritsData={setEcritsData}
+                            setOralData={setOralData}
+                            dynamicFields={champsConcours.filter(champ => 
+                                champ.nom.includes('Semestre') || 
+                                champ.categorie === 'Académique'
+                            )}
+                            selectedConcoursId={selectedConcoursId}
+                            selectedFields={selectedFields}
+                            sortByNote={sortByNote}
+                            onSortByNote={setSortByNote}
+                        />
+                    )}
+                    
+                    <TablePagination
+                        rowsPerPageOptions={[5, 10, 25, 50]}
+                        component="div"
+                        count={displayedData.length}
+                        rowsPerPage={rowsPerPage}
+                        page={page}
+                        onPageChange={(event, newPage) => setPage(newPage)}
+                        onRowsPerPageChange={(event) => {
+                            setRowsPerPage(parseInt(event.target.value, 10));
+                            setPage(0);
+                        }}
+                    />
+
+                    <DocumentDialog
+                        openDialog={openDialog}
+                        handleCloseDialog={handleCloseDialog}
+                        selectedDocs={selectedDocs}
+                    />
+
+                    {phase !== 'final' && (
+                        <Button variant="contained" onClick={handleExportExcel} sx={{ mt: 3 }}>
+                            Exporter les candidats admis
+                        </Button>
+                    )}
+                    
+                    {phase === 'final' && (
+                        <Box sx={{ display: 'flex', gap: 2, mb: 2, justifyContent: 'flex-start' }}>
+                            <Button
+                                variant="contained"
+                                onClick={() => handleExportExcel('Admis liste principale')}
+                            >
+                                Télécharger Liste Principale
                             </Button>
-                        )}
-                        
-                        {phase === 'final' && (
-                            <Box sx={{ display: 'flex', gap: 2, mb: 2, justifyContent: 'flex-start' }}>
-                                <Button
-                                    variant="contained"
-                                    onClick={() => handleExportExcel('Admis en liste principale')}
-                                >
-                                    Télécharger Liste Principale
-                                </Button>
-                                <Button
-                                    variant="contained"
-                                    onClick={() => handleExportExcel('Admis en liste d\'attente')}
-                                >
-                                    Télécharger Liste d'Attente
-                                </Button>
-                            </Box>
-                        )}
-                    </Paper>
-                )}
-            </Box>
-        </ThemeProvider>
-    );
-};
+                            <Button
+                                variant="contained"
+                                onClick={() => handleExportExcel('Admis liste attente')}
+                            >
+                                Télécharger Liste d'Attente
+                            </Button>
+                        </Box>
+                    )}
+                </Paper>
+            )}
+        </Box>
+    </ThemeProvider>
+);
 
+}
 export default GestionCandidaturesPhases;

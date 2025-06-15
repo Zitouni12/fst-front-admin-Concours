@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
     TableContainer,
     Table,
@@ -17,6 +17,7 @@ import {
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import axios from 'axios';
+import { Switch } from '@mui/material'; // AJOUTER cet import si pas déjà présent
 
 const primaryColor = "#B36B39";
 const secondaryColor = "#2C3E50";
@@ -33,11 +34,56 @@ const CandidatTable = ({
     handleOpenDialog,
     setEcritsData,
     setOralData,
+    setCandidatureData,
     dynamicFields,
     selectedConcoursId,
     selectedFields,
+    sortByNote, // NOUVELLE PROP
+    onSortByNote // NOUVELLE PROP
+
 }) => {
-    // Fonction pour mettre à jour la note d'une épreuve écrite
+    // CORRECTION : Déplacer useEffect au niveau du composant principal
+    useEffect(() => {
+        if (phase === 'candidature' && currentData && currentData.length > 0) {
+            currentData.forEach((row) => {
+                const calculatedNote = calculateSelectionAverage ? calculateSelectionAverage(row) : '';
+                
+                if (calculatedNote && calculatedNote !== '' && !row.note_dossier) {
+                    // Délai pour éviter trop d'appels API
+                    setTimeout(() => {
+                        saveCalculatedNote(row.id, calculatedNote);
+                    }, 1000);
+                }
+            });
+        }
+    }, [currentData, phase, selectedFields]);
+
+    // NOUVELLE FONCTION : Enregistrer automatiquement la note calculée
+    const saveCalculatedNote = async (inscriptionId, calculatedNote) => {
+        if (calculatedNote && calculatedNote !== '' && !isNaN(parseFloat(calculatedNote))) {
+            try {
+                await axios.patch(`http://localhost:8000/api/candidatures/${inscriptionId}/note-dossier`, { 
+                    note_dossier: parseFloat(calculatedNote)
+                });
+                console.log("Note calculée enregistrée automatiquement:", calculatedNote);
+                
+                // Mettre à jour l'état local
+                if (setCandidatureData) {
+                    setCandidatureData(prev =>
+                        prev.map(item =>
+                            item.id === inscriptionId
+                                ? { ...item, note_dossier: parseFloat(calculatedNote) }
+                                : item
+                        )
+                    );
+                }
+            } catch (error) {
+                console.error("Erreur lors de l'enregistrement automatique:", error);
+            }
+        }
+    };
+
+    // Fonctions existantes pour épreuves écrites et orales
     const updateEcritNote = async (id, newNote) => {
         try {
             await axios.patch(`http://localhost:8000/api/epreuves-ecrits/${id}`, { note: newNote });
@@ -47,7 +93,6 @@ const CandidatTable = ({
         }
     };
 
-    // Fonction pour mettre à jour la note d'une épreuve orale
     const updateOralNote = async (id, newNote) => {
         try {
             await axios.patch(`http://localhost:8000/api/epreuves-orales/${id}`, { note: newNote });
@@ -59,43 +104,38 @@ const CandidatTable = ({
 
     // Colonnes dynamiques selon la phase
     const getColumns = () => {
-        const baseColumns = [
-            { id: 'name', label: 'Nom' },
-            { id: 'email', label: 'Adresse E-mail Personnelle' },
-        ];
-
-        if (phase === 'candidature' || phase === 'ecrits' || phase === 'oral' || phase === 'final') {
-            baseColumns.push(
-                { id: 'anneeBac', label: 'Année d obtention du Bac' },
-                { id: 'filiere', label: 'Type de diplome' }
-            );
-        }
+        const baseColumns = [];
 
         if (phase === 'candidature') {
             baseColumns.push(
-                { id: 'average', label: 'Moyenne Calculée' },
+                { id: 'nom', label: 'Nom' },
+                { id: 'prenom', label: 'Prénom' },
+                { id: 'anneeBac', label: 'Année d obtention du Bac' },
+                { id: 'type_diplome', label: 'Type de diplome' },
+                { id: 'note_dossier', label: 'Note de dossier' },
                 { id: 'statut', label: 'Statut' },
                 { id: 'documents', label: 'Documents' }
             );
-        } else if (phase === 'ecrits' || phase === 'oral') {
+        } else {
             baseColumns.push(
-                { id: 'note', label: phase === 'ecrits' ? 'Note Écrit' : 'Note Oral' },
-                { id: 'statut', label: 'Statut' }
-            );
-        } else if (phase === 'final') {
-            // Colonnes spécifiques pour la phase finale
-            baseColumns.splice(0, 2, 
-                { id: 'rang', label: 'Liste' },
-                { id: 'rang_numero', label: 'Rang' },
                 { id: 'name', label: 'Nom' },
-                { id: 'prenom', label: 'Prénom' },
-                { id: 'email', label: 'Email' }
+                { id: 'email', label: 'Adresse E-mail Personnelle' }
             );
-            baseColumns.push(
-                { id: 'note_ecrite', label: 'Note Écrite' },
-                { id: 'note_orale', label: 'Note Orale' },
-                { id: 'score_merite', label: 'Score Mérite' }
-            );
+
+            if (phase === 'ecrits' || phase === 'oral') {
+                baseColumns.push(
+                    { id: 'anneeBac', label: 'Année d obtention du Bac' },
+                    { id: 'filiere', label: 'Type de diplome' }
+                );
+            }
+
+            if (phase === 'ecrits' || phase === 'oral') {
+                baseColumns.push(
+                    { id: 'note', label: phase === 'ecrits' ? 'Note Écrit' : 'Note Oral' },
+                    { id: 'statut', label: 'Statut' }
+                );
+            } 
+            
         }
         return baseColumns;
     };
@@ -113,14 +153,31 @@ const CandidatTable = ({
     }
 
     return (
-        <Paper
-            elevation={3}
-            sx={{
-                borderRadius: 4,
-                overflow: 'hidden',
-                mb: 4
-            }}
-        >
+         <>
+          {/* NOUVEAU : Composant de tri pour les phases écrits/oral */}
+            {(phase === 'ecrits' || phase === 'oral') && (
+                <Paper elevation={3} sx={{ p: 2, mb: 2, borderRadius: 4 }}>
+                    <Box display="flex" alignItems="center" justifyContent="flex-end">
+                        <Typography variant="subtitle1" sx={{ mr: 1, color: secondaryColor, fontWeight: 500 }}>
+                            {phase === 'ecrits' ? 'Trier par Note Écrite' : 'Trier par Note Orale'}
+                        </Typography>
+                        <Switch
+                            checked={sortByNote || false}
+                            onChange={(e) => onSortByNote && onSortByNote(e.target.checked)}
+                            sx={{
+                                '& .MuiSwitch-switchBase.Mui-checked': {
+                                    color: primaryColor,
+                                    '&:hover': { backgroundColor: `${primaryColor}1A` },
+                                },
+                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                                    backgroundColor: primaryColor,
+                                },
+                            }}
+                        />
+                    </Box>
+                </Paper>
+            )}
+        <Paper elevation={3} sx={{ borderRadius: 4, overflow: 'hidden', mb: 4 }}>
             <TableContainer>
                 <Table>
                     <TableHead sx={{ backgroundColor: secondaryColor }}>
@@ -139,15 +196,24 @@ const CandidatTable = ({
                                 // Extraction des valeurs selon la phase
                                 let nom, email, anneeBac, filiere, prenom;
 
-                                if (phase === 'final') {
-                                    // Pour la phase finale, utiliser les données déjà formatées
-                                    nom = row.name;
-                                    prenom = row.prenom;
-                                    email = row.email;
-                                    anneeBac = row.anneeBac;
-                                    filiere = row.filiere;
+                                if (phase === 'candidature') {
+                                    nom = row.nom || (row.valeursFormulaire 
+                                        ? row.valeursFormulaire.find(v => v.champ.nom === "Nom")?.valeur 
+                                        : 'N/A') || 'N/A';
+                                    
+                                    prenom = row.prenom || (row.valeursFormulaire 
+                                        ? row.valeursFormulaire.find(v => v.champ.nom === "Prénom")?.valeur 
+                                        : 'N/A') || 'N/A';
+                                    
+                                    filiere = row.type_diplome || (row.valeursFormulaire 
+                                        ? row.valeursFormulaire.find(v => v.champ.nom === "Type de diplome")?.valeur 
+                                        : 'N/A') || 'N/A';
+                                    
+                                    anneeBac = row.valeursFormulaire 
+                                        ? row.valeursFormulaire.find(v => v.champ.nom === "Année d obtention du Bac")?.valeur || 'N/A'
+                                        : 'N/A';
+                                
                                 } else {
-                                    // Pour les autres phases, extraire depuis valeursFormulaire
                                     nom = row.valeursFormulaire
                                         ? row.valeursFormulaire.find(v => v.champ.nom === "Nom")?.valeur || 'N/A'
                                         : 'N/A';
@@ -165,6 +231,9 @@ const CandidatTable = ({
                                         : '';
                                 }
 
+                                // CALCULER LA NOTE (sans useEffect ici)
+                                const calculatedNote = calculateSelectionAverage ? calculateSelectionAverage(row) : '';
+
                                 return (
                                     <TableRow
                                         key={row.id}
@@ -172,112 +241,159 @@ const CandidatTable = ({
                                         sx={{
                                             '&:last-child td, &:last-child th': { border: 0 },
                                             '&:hover': { backgroundColor: '#F5F5F5' },
-                                            // Couleur de fond pour la phase finale
                                             backgroundColor: phase === 'final' 
                                                 ? (row.statut === 'Admis liste principale' ? '#f0f7ff' : '#fffbf0')
                                                 : 'inherit'
                                         }}
                                     >
-                                        {phase === 'final' ? (
-                                            // Affichage spécifique pour la phase finale
+                                        {phase === 'candidature' ? (
                                             <>
-                                                <TableCell>
-                                                    <Chip 
-                                                        label={row.rang} 
-                                                        color={row.statut === 'Admis liste principale' ? 'primary' : 'warning'}
-                                                        sx={{ 
-                                                            fontWeight: 'bold',
-                                                            backgroundColor: row.statut === 'Admis liste principale' ? primaryColor : '#FFA726'
-                                                        }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell sx={{ fontWeight: 'bold' }}>{row.rang_numero}</TableCell>
                                                 <TableCell>{nom}</TableCell>
                                                 <TableCell>{prenom}</TableCell>
-                                                <TableCell>{email}</TableCell>
-                                               
+                                                <TableCell>{anneeBac}</TableCell>
                                                 <TableCell>{filiere}</TableCell>
-                                                <TableCell>{row.note_ecrite || '-'}</TableCell>
-                                                <TableCell>{row.note_orale || '-'}</TableCell>
-                                                <TableCell sx={{ fontWeight: 'bold' }}>{row.score_merite}</TableCell>
+                                                <TableCell>
+                                                    {/* NOTE DE DOSSIER EN LECTURE SEULE */}
+                                                    <Box
+                                                        sx={{
+                                                            backgroundColor: '#f5f5f5',
+                                                            border: '1px solid #ddd',
+                                                            borderRadius: '4px',
+                                                            padding: '8px 12px',
+                                                            minWidth: '80px',
+                                                            textAlign: 'center',
+                                                            fontWeight: 'bold',
+                                                            color: '#666',
+                                                            fontSize: '0.875rem'
+                                                        }}
+                                                    >
+                                                        {row.note_dossier || calculatedNote || 'N/A'}
+                                                    </Box>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Select
+                                                        variant="standard"
+                                                        value={row.statut || ''}
+                                                        onChange={(e) => {
+                                                            const newStatut = e.target.value;
+                                                            handleChangeStatus(row.id, newStatut);
+                                                            if (setCandidatureData) {
+                                                                setCandidatureData(prev =>
+                                                                    prev.map(item =>
+                                                                        item.id === row.id
+                                                                            ? { ...item, statut: newStatut }
+                                                                            : item
+                                                                    )
+                                                                );
+                                                            }
+                                                        }}
+                                                        sx={{
+                                                            minWidth: 200,
+                                                            color: getStatusColor(row.statut),
+                                                            fontWeight: 'bold',
+                                                        }}
+                                                        renderValue={(selected) => (
+                                                            <Box sx={{ color: getStatusColor(selected) }}>
+                                                                {selected || 'Sélectionner un statut'}
+                                                            </Box>
+                                                        )}
+                                                    >
+                                                          <MenuItem value="">Sélectionner un statut</MenuItem>
+                                                        <MenuItem value="En attente">En attente</MenuItem>
+                                                        <MenuItem value="Admis epreuve ecrite" sx={{ color: 'success.main' }}>
+                                                            Admis à l'épreuve écrite
+                                                        </MenuItem>
+                                                        <MenuItem value="Candidature rejetee" sx={{ color: accentColor }}>
+                                                            Candidature rejetée
+                                                        </MenuItem>
+                                                        <MenuItem value="Admis epreuve orale" sx={{ color: 'success.main' }}>
+                                                            Admis à l'épreuve orale
+                                                        </MenuItem>
+                                                        <MenuItem value="Non Admis" sx={{ color: accentColor }}>
+                                                            Non Admis
+                                                        </MenuItem>
+                                                        <MenuItem value="Admis liste principale" sx={{ color: 'success.main' }}>
+                                                            Admis en liste principale
+                                                        </MenuItem>
+                                                        <MenuItem value="Admis liste attente" sx={{ color: 'warning.main' }}>
+                                                            Admis en liste d'attente
+                                                        </MenuItem>
+                                                    </Select>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Button
+                                                        onClick={() => handleOpenDialog(row.inscription_id || row.id)}
+                                                        variant="contained"
+                                                        color="primary"
+                                                        size="small"
+                                                        sx={{
+                                                            textTransform: 'none',
+                                                            fontWeight: 600,
+                                                            borderRadius: 30,
+                                                            padding: '8px 16px',
+                                                        }}
+                                                    >
+                                                        <VisibilityIcon sx={{ fontSize: 20, mr: 1 }} /> Voir
+                                                    </Button>
+                                                </TableCell>
                                             </>
                                         ) : (
-                                            // Affichage pour les autres phases
+                                            // Affichage pour les autres phases (écrits, oral)
                                             <>
-                                                {/* Nom */}
                                                 <TableCell>{nom}</TableCell>
-                                                {/* Email */}
                                                 <TableCell>{email}</TableCell>
-                                                {/* Année Bac */}
-                                                <TableCell>{anneeBac}</TableCell>
-                                                {/* Filière */}
-                                                <TableCell>{filiere}</TableCell>
-                                                
-                                                {/* Moyenne ou Note */}
-                                                {phase === 'candidature' && (
-                                                    <TableCell>
-                                                        {calculateSelectionAverage ? calculateSelectionAverage(row) : 'N/A'}
-                                                    </TableCell>
-                                                )}
-                                                
                                                 {(phase === 'ecrits' || phase === 'oral') && (
-                                                    <TableCell>
-                                                        <TextField
-                                                            type="number"
-                                                            value={row.note || ''}
-                                                            onChange={(e) => {
-                                                                const newNote = e.target.value;
-                                                                if (phase === 'ecrits' && setEcritsData) {
-                                                                    setEcritsData(prev =>
-                                                                        prev.map(item =>
-                                                                            item.id === row.id
-                                                                                ? { ...item, note: newNote }
-                                                                                : item
-                                                                        )
-                                                                    );
-                                                                    updateEcritNote(row.id, newNote);
-                                                                }
-                                                                if (phase === 'oral' && setOralData) {
-                                                                    setOralData(prev =>
-                                                                        prev.map(item =>
-                                                                            item.id === row.id
-                                                                                ? { ...item, note: newNote }
-                                                                                : item
-                                                                        )
-                                                                    );
-                                                                    updateOralNote(row.id, newNote);
-                                                                }
-                                                            }}
-                                                            onBlur={(e) => {
-                                                                const newNote = e.target.value;
-                                                                if (phase === 'ecrits') {
-                                                                    updateEcritNote(row.id, newNote);
-                                                                } else if (phase === 'oral') {
-                                                                    updateOralNote(row.id, newNote);
-                                                                }
-                                                            }}
-                                                            size="small"
-                                                            inputProps={{
-                                                                step: "0.01",
-                                                                min: "0",
-                                                                max: "20"
-                                                            }}
-                                                            sx={{
-                                                                width: '100px',
-                                                                '& .MuiOutlinedInput-root': {
-                                                                    '&.Mui-focused fieldset': {
-                                                                        borderColor: primaryColor,
-                                                                    },
-                                                                },
-                                                            }}
-                                                        />
-                                                    </TableCell>
+                                                    <>
+                                                        <TableCell>{anneeBac}</TableCell>
+                                                        <TableCell>{filiere}</TableCell>
+                                                    </>
                                                 )}
-                                                
-                                                {/* Statut */}
-                                                {phase !== 'final' && (
-                                                    <TableCell>
-                                                        <Select
+                                                {(phase === 'ecrits' || phase === 'oral') && (
+                                                    <>
+                                                        <TableCell>
+                                                            <TextField
+                                                                type="number"
+                                                                value={row.note || ''}
+                                                                onChange={(e) => {
+                                                                    const newNote = e.target.value;
+                                                                    if (phase === 'ecrits' && setEcritsData) {
+                                                                        setEcritsData(prev =>
+                                                                            prev.map(item =>
+                                                                                item.id === row.id
+                                                                                    ? { ...item, note: newNote }
+                                                                                    : item
+                                                                            )
+                                                                        );
+                                                                    }
+                                                                    if (phase === 'oral' && setOralData) {
+                                                                        setOralData(prev =>
+                                                                            prev.map(item =>
+                                                                                item.id === row.id
+                                                                                    ? { ...item, note: newNote }
+                                                                                    : item
+                                                                            )
+                                                                        );
+                                                                    }
+                                                                }}
+                                                                onBlur={(e) => {
+                                                                    const newNote = e.target.value;
+                                                                    if (phase === 'ecrits') {
+                                                                        updateEcritNote(row.id, newNote);
+                                                                    } else if (phase === 'oral') {
+                                                                        updateOralNote(row.id, newNote);
+                                                                    }
+                                                                }}
+                                                                size="small"
+                                                                inputProps={{
+                                                                    step: "0.01",
+                                                                    min: "0",
+                                                                    max: "20"
+                                                                }}
+                                                                sx={{ width: '100px' }}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Select
                                                             variant="standard"
                                                             value={row.statut || ''}
                                                             onChange={(e) => handleChangeStatus(row.id, e.target.value)}
@@ -290,7 +406,7 @@ const CandidatTable = ({
                                                                 <Box sx={{ color: getStatusColor(selected) }}>{selected || 'Sélectionner un statut'}</Box>
                                                             )}
                                                         >
-                                                            <MenuItem value="">Sélectionner un statut</MenuItem>
+                                                               <MenuItem value="">Sélectionner un statut</MenuItem>
                                                             <MenuItem value="En attente">En attente</MenuItem>
                                                             <MenuItem value="Admis epreuve ecrite" sx={{ color: 'success.main' }}>
                                                                 Admis à l'épreuve écrite
@@ -310,38 +426,11 @@ const CandidatTable = ({
                                                             <MenuItem value="Admis liste attente" sx={{ color: 'warning.main' }}>
                                                                 Admis en liste d'attente
                                                             </MenuItem>
-                                                        </Select>
-                                                    </TableCell>
+                                                            </Select>
+                                                        </TableCell>
+                                                    </>
                                                 )}
-                                                
-                                                {/* Documents */}
-                                                {phase === 'candidature' && (
-                                                    <TableCell>
-                                                        <Button
-                                                            onClick={() => handleOpenDialog(row.id)}
-                                                            variant="contained"
-                                                            color="primary"
-                                                            size="small"
-                                                            sx={{
-                                                                textTransform: 'none',
-                                                                fontWeight: 600,
-                                                                borderRadius: 30,
-                                                                padding: '8px 16px',
-                                                                background: `linear-gradient(45deg, ${primaryColor} 30%, ${primaryColor}CC 90%)`,
-                                                                '&:hover': {
-                                                                    background: `linear-gradient(45deg, ${primaryColor}CC 30%, ${primaryColor} 90%)`,
-                                                                    transform: 'translateY(-3px)',
-                                                                    boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-                                                                },
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                gap: 1,
-                                                            }}
-                                                        >
-                                                            <VisibilityIcon sx={{ fontSize: 20 }} /> Voir
-                                                        </Button>
-                                                    </TableCell>
-                                                )}
+                                              
                                             </>
                                         )}
                                     </TableRow>
@@ -351,6 +440,7 @@ const CandidatTable = ({
                 </Table>
             </TableContainer>
         </Paper>
+         </>
     );
 };
 

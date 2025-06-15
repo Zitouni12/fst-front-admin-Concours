@@ -13,6 +13,7 @@ import AutomaticAdmission from '../../components/Concours/AutomaticAdmission';
 import CandidatTable from '../../components/Concours/CandidatTable';
 import FinalAdmissionsTable from '../../components/Concours/FinalAdmissionsTable';
 import DocumentDialog from '../../components/Concours/DocumentDialog';
+import SuccessAlert from '../../components/Concours/SuccessAlert';
 import axios from 'axios';
 
 // Définition des couleurs principales
@@ -114,7 +115,11 @@ const GestionCandidaturesPhases = () => {
    /////////
    const [scoreMeriteConfig, setScoreMeriteConfig] = useState(null);
   const [sortByNote, setSortByNote] = useState(false); // NOUVEAU STATE pour le tri par note
-
+ // Ajoutez ces nouveaux states
+const [scoreMeriteConfigEcrits, setScoreMeriteConfigEcrits] = useState(null);
+const [scoreMeriteConfigOral, setScoreMeriteConfigOral] = useState(null);
+// Ajoutez ce state
+const [successAlert, setSuccessAlert] = useState(null);
     // Fonction pour générer les phases selon le type d'épreuve
     const getAvailablePhases = (typeEpreuve) => {
         const basePhases = [
@@ -563,11 +568,11 @@ const GestionCandidaturesPhases = () => {
     } else if (phase === 'ecrits' && ecritsData.length > 0) {
         dataToDisplay = ecritsData;
         // NOUVEAU : Tri par note écrite si demandé
-        if (sortByNote) {
+      if (sortByNote) {
             dataToDisplay = [...dataToDisplay].sort((a, b) => {
-                const noteA = parseFloat(a.note) || 0;
-                const noteB = parseFloat(b.note) || 0;
-                return noteB - noteA;
+                const scoreA = parseFloat(a.score_merite) || 0;
+                const scoreB = parseFloat(b.score_merite) || 0;
+                return scoreB - scoreA; // Tri décroissant
             });
         }
     } else if (phase === 'oral' && oralData.length > 0) {
@@ -575,9 +580,9 @@ const GestionCandidaturesPhases = () => {
         // NOUVEAU : Tri par note orale si demandé
         if (sortByNote) {
             dataToDisplay = [...dataToDisplay].sort((a, b) => {
-                const noteA = parseFloat(a.note) || 0;
-                const noteB = parseFloat(b.note) || 0;
-                return noteB - noteA;
+                const scoreA = parseFloat(a.score_merite) || 0;
+                const scoreB = parseFloat(b.score_merite) || 0;
+                return scoreB - scoreA; // Tri décroissant
             });
         }
     } else if (phase === 'final' && finalAdmissionsData.length > 0) {
@@ -805,35 +810,102 @@ const handleConfigureScoreMerite = async (config) => {
 };
 
  // NOUVELLE FONCTION pour gérer le tri par note selon la phase
-    const handleSortByNote = (enabled) => {
-        setSortByNote(enabled);
-        
-        // Recharger les données triées selon la phase
-        if (enabled) {
-            if (phase === 'ecrits' && ecritsData.length > 0) {
-                const sortedData = [...ecritsData].sort((a, b) => {
-                    const noteA = parseFloat(a.note) || 0;
-                    const noteB = parseFloat(b.note) || 0;
-                    return noteB - noteA; // Tri décroissant
-                });
-                setEcritsData(sortedData);
-            } else if (phase === 'oral' && oralData.length > 0) {
-                const sortedData = [...oralData].sort((a, b) => {
-                    const noteA = parseFloat(a.note) || 0;
-                    const noteB = parseFloat(b.note) || 0;
-                    return noteB - noteA; // Tri décroissant
-                });
-                setOralData(sortedData);
-            } else if (phase === 'final' && finalAdmissionsData.length > 0) {
-                const sortedData = [...finalAdmissionsData].sort((a, b) => {
-                    const scoreA = parseFloat(a.score_merite) || 0;
-                    const scoreB = parseFloat(b.score_merite) || 0;
-                    return scoreB - scoreA; // Tri décroissant
-                });
-                setFinalAdmissionsData(sortedData);
-            }
+
+const handleSortByNote = (enabled) => {
+    setSortByNote(enabled);
+    
+    // Recharger les données triées selon la phase
+    if (enabled) {
+        if (phase === 'ecrits' && ecritsData.length > 0) {
+            const sortedData = [...ecritsData].sort((a, b) => {
+                // ✅ CORRECTION : Tri par Score Mérite
+                const scoreA = parseFloat(a.score_merite) || 0;
+                const scoreB = parseFloat(b.score_merite) || 0;
+                return scoreB - scoreA; // Tri décroissant
+            });
+            setEcritsData(sortedData);
+        } else if (phase === 'oral' && oralData.length > 0) {
+            const sortedData = [...oralData].sort((a, b) => {
+                // ✅ CORRECTION : Tri par Score Mérite
+                const scoreA = parseFloat(a.score_merite) || 0;
+                const scoreB = parseFloat(b.score_merite) || 0;
+                return scoreB - scoreA; // Tri décroissant
+            });
+            setOralData(sortedData);
+        } else if (phase === 'final' && finalAdmissionsData.length > 0) {
+            const sortedData = [...finalAdmissionsData].sort((a, b) => {
+                const scoreA = parseFloat(a.score_merite) || 0;
+                const scoreB = parseFloat(b.score_merite) || 0;
+                return scoreB - scoreA; // Tri décroissant
+            });
+            setFinalAdmissionsData(sortedData);
         }
-    };
+    }
+};
+
+
+// Nouvelles fonctions pour configurer le Score Mérite
+const handleConfigureScoreMeriteEcrits = async (config) => {
+    if (!selectedConcoursId) return;
+    
+    try {
+        const response = await axios.post(
+            `http://localhost:8000/api/concours/${selectedConcoursId}/ecrits/configure-score-merite`,
+            config
+        );
+        
+        setScoreMeriteConfigEcrits(config);
+        
+        // Recharger les données
+        const dataResponse = await axios.get(`http://localhost:8000/api/concours/${selectedConcoursId}/ecrits`);
+        setEcritsData(dataResponse.data);
+        
+        // ✅ NOUVELLE ALERTE STYLISÉE
+        setSuccessAlert({
+            message: `${response.data.epreuves_updated} épreuves mises à jour`,
+            details: 'Les scores de mérite ont été recalculés selon la nouvelle configuration'
+        });
+        
+    } catch (error) {
+        console.error("Erreur lors de la configuration du Score Mérite écrits:", error);
+        alert("Erreur lors de la configuration du Score Mérite.");
+    }
+};
+
+const handleConfigureScoreMeriteOral = async (config) => {
+    if (!selectedConcoursId) return;
+    
+    try {
+        const response = await axios.post(
+            `http://localhost:8000/api/concours/${selectedConcoursId}/oraux/configure-score-merite`,
+            config
+        );
+        
+        setScoreMeriteConfigOral(config);
+        
+        // Recharger les données de la phase orale
+        if (phase === 'oral') {
+            axios.get(`http://localhost:8000/api/concours/${selectedConcoursId}/oraux`)
+                .then(response => {
+                    setOralData(response.data);
+                });
+        }
+        
+         
+        // ✅ NOUVELLE ALERTE STYLISÉE
+        setSuccessAlert({
+            message: `${response.data.epreuves_updated} épreuves mises à jour`,
+            details: 'Les scores de mérite ont été recalculés selon la nouvelle configuration'
+        });
+        
+    } catch (error) {
+        console.error("Erreur lors de la configuration du Score Mérite oral:", error);
+        alert("Erreur lors de la configuration du Score Mérite.");
+    }
+};
+
+
+
 
     return (
     <ThemeProvider theme={theme}>
@@ -953,7 +1025,23 @@ const handleConfigureScoreMerite = async (config) => {
                             selectedFields={selectedFields}
                             sortByNote={sortByNote}
                             onSortByNote={setSortByNote}
-                        />
+                            onConfigureScoreMerite={
+            phase === 'ecrits' 
+                ?  handleConfigureScoreMeriteEcrits 
+                : phase === 'oral' 
+                    ?  handleConfigureScoreMeriteOral 
+                    : null
+        }
+        scoreMeriteConfig={
+            phase === 'ecrits' 
+                ? scoreMeriteConfigEcrits 
+                : phase === 'oral' 
+                    ? scoreMeriteConfigOral 
+                    : null
+        }
+        typeEpreuve={selectedConcours?.type_epreuve} // ✅ Passer directement le type
+    />
+                        
                     )}
                     
                     <TablePagination
@@ -997,7 +1085,14 @@ const handleConfigureScoreMerite = async (config) => {
                             </Button>
                         </Box>
                     )}
-                </Paper>
+                     {/* ✅ ALERTE DE SUCCÈS */}
+            {successAlert && (
+                <SuccessAlert
+                    message={successAlert.message}
+                    details={successAlert.details}
+                    onClose={() => setSuccessAlert(null)}
+                />
+            )}</Paper>
             )}
         </Box>
     </ThemeProvider>

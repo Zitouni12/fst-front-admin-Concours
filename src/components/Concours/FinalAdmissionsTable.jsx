@@ -10,10 +10,10 @@ import {
     Typography,
     Paper,
     Chip,
-    Button
+    Button,
+    Alert
 } from '@mui/material';
-import { Settings as SettingsIcon } from '@mui/icons-material';
-import ScoreMeriteConfig from './ScoreMeriteConfig';
+import { Settings as SettingsIcon, Sync as SyncIcon } from '@mui/icons-material';
 import Switch from '@mui/material/Switch';
 
 const primaryColor = "#B36B39";
@@ -27,9 +27,12 @@ const FinalAdmissionsTable = ({
     onConfigureScoreMerite,
     scoreMeriteConfig,
     sortByNote,
-    onSortByNote
+    onSortByNote,
+    selectedConcoursId, // NOUVELLE PROP
+    onDataRefresh // NOUVELLE PROP
 }) => {
-    const [configDialogOpen, setConfigDialogOpen] = useState(false);
+    const [syncing, setSyncing] = useState(false);
+    const [syncMessage, setSyncMessage] = useState('');
 
     // Colonnes pour la phase finale
     const columns = [
@@ -46,9 +49,32 @@ const FinalAdmissionsTable = ({
         { id: 'score_merite', label: 'Score Mérite' }
     ];
 
-    const handleConfigSave = (config) => {
-        console.log("Configuration reçue:", config);
-        onConfigureScoreMerite(config);
+    // ✅ NOUVELLE FONCTION : Synchroniser les données
+    const handleSynchronize = async () => {
+        if (!selectedConcoursId) return;
+        
+        setSyncing(true);
+        try {
+            const response = await axios.post(
+                `http://localhost:8000/api/concours/${selectedConcoursId}/final/synchronize`
+            );
+            
+            setSyncMessage(`✅ ${response.data.message} - ${response.data.candidats_updated} candidats mis à jour`);
+            
+            // Recharger les données
+            if (onDataRefresh) {
+                onDataRefresh();
+            }
+            
+            // Effacer le message après 5 secondes
+            setTimeout(() => setSyncMessage(''), 5000);
+        } catch (error) {
+            console.error("Erreur lors de la synchronisation:", error);
+            setSyncMessage('❌ Erreur lors de la synchronisation');
+            setTimeout(() => setSyncMessage(''), 5000);
+        } finally {
+            setSyncing(false);
+        }
     };
 
     if (!currentData || currentData.length === 0) {
@@ -57,12 +83,13 @@ const FinalAdmissionsTable = ({
                 <Typography variant="h6" align="center" sx={{ py: 5 }}>
                     Aucune donnée disponible pour cette phase
                 </Typography>
-                <Box sx={{ textAlign: 'center', mt: 2 }}>
+                <Box sx={{ textAlign: 'center', mt: 2, display: 'flex', gap: 2, justifyContent: 'center' }}>
                     <Button
                         variant="contained"
                         color="primary"
-                        startIcon={<SettingsIcon />}
-                        onClick={() => setConfigDialogOpen(true)}
+                        startIcon={<SyncIcon />}
+                        onClick={handleSynchronize}
+                        disabled={syncing}
                         sx={{
                             backgroundColor: primaryColor,
                             '&:hover': {
@@ -70,51 +97,46 @@ const FinalAdmissionsTable = ({
                             }
                         }}
                     >
-                        Configurer le Score Mérite
+                        {syncing ? 'Synchronisation...' : 'Synchroniser les données'}
                     </Button>
                 </Box>
                 
-                <ScoreMeriteConfig
-                    open={configDialogOpen}
-                    onClose={() => setConfigDialogOpen(false)}
-                    onSave={handleConfigSave}
-                    initialConfig={scoreMeriteConfig || {
-                        includeDossier: true,
-                        includeEcrit: true,
-                        includeOral: true,
-                        coeffDossier: 0.5,
-                        coeffEcrit: 1,
-                        coeffOral: 0.25
-                    }}
-                />
+                {syncMessage && (
+                    <Alert 
+                        severity={syncMessage.includes('✅') ? 'success' : 'error'} 
+                        sx={{ mt: 2 }}
+                    >
+                        {syncMessage}
+                    </Alert>
+                )}
             </Paper>
         );
     }
 
     return (
         <Box sx={{ position: 'relative' }}>
-            {/* NOUVEAU : Bloc de configuration séparé comme dans la phase orale */}
+            {/* ✅ NOUVEAU : Bloc de configuration et synchronisation */}
             <Paper elevation={3} sx={{ p: 2, mb: 2, borderRadius: 4 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-
-                    {/* Bouton Configurer à gauche*/}
+                    {/* Bouton Synchroniser à gauche */}
                     <Button
                         variant="outlined"
                         size="small"
-                        startIcon={<SettingsIcon />}
-                        onClick={() => setConfigDialogOpen(true)}
+                        startIcon={<SyncIcon />}
+                        onClick={handleSynchronize}
+                        disabled={syncing}
                         sx={{ 
-                            borderColor: primaryColor, 
-                            color: primaryColor,
+                            borderColor: secondaryColor, 
+                            color: secondaryColor,
                             '&:hover': {
-                                borderColor: `${primaryColor}CC`,
-                                backgroundColor: `${primaryColor}10`,
+                                borderColor: `${secondaryColor}CC`,
+                                backgroundColor: `${secondaryColor}10`,
                             }
                         }}
                     >
-                        Configurer Score Mérite
+                        {syncing ? 'Synchronisation...' : 'Synchroniser'}
                     </Button>
-
+                    
                     {/* Tri par Score Mérite à droite */}
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Typography variant="subtitle1" sx={{ mr: 1, color: secondaryColor, fontWeight: 500 }}>
@@ -134,26 +156,21 @@ const FinalAdmissionsTable = ({
                             }}
                         />
                     </Box>
-                    
-                    
                 </Box>
                 
-                {/* Configuration actuelle en dessous */}
-                {scoreMeriteConfig && (
-                    <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #eee' }}>
-                        <Typography variant="body2" sx={{ color: '#666' }}>
-                            Configuration actuelle : 
-                            {scoreMeriteConfig.includeDossier && ` Dossier (${scoreMeriteConfig.coeffDossier})`}
-                            {scoreMeriteConfig.includeEcrit && ` + Écrit (${scoreMeriteConfig.coeffEcrit})`}
-                            {scoreMeriteConfig.includeOral && ` + Oral (${scoreMeriteConfig.coeffOral})`}
-                        </Typography>
-                    </Box>
+                {/* Message de synchronisation */}
+                {syncMessage && (
+                    <Alert 
+                        severity={syncMessage.includes('✅') ? 'success' : 'error'} 
+                        sx={{ mt: 2 }}
+                    >
+                        {syncMessage}
+                    </Alert>
                 )}
             </Paper>
 
             {/* Tableau principal */}
             <Paper elevation={3} sx={{ borderRadius: 4, overflow: 'hidden', mb: 4 }}>
-                {/* En-tête simplifié */}
                 <Box sx={{ p: 2, backgroundColor: '#f8f9fa', borderBottom: '1px solid #ddd' }}>
                     <Typography variant="h6" sx={{ color: primaryColor, fontWeight: 'bold' }}>
                         Résultats Finaux du Concours
@@ -212,21 +229,6 @@ const FinalAdmissionsTable = ({
                     </Table>
                 </TableContainer>
             </Paper>
-
-            {/* Dialog de configuration */}
-            <ScoreMeriteConfig
-                open={configDialogOpen}
-                onClose={() => setConfigDialogOpen(false)}
-                onSave={handleConfigSave}
-                initialConfig={scoreMeriteConfig || {
-                    includeDossier: true,
-                    includeEcrit: true,
-                    includeOral: true,
-                    coeffDossier: 0.5,
-                    coeffEcrit: 1,
-                    coeffOral: 0.25
-                }}
-            />
         </Box>
     );
 };

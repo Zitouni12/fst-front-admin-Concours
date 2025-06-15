@@ -14,6 +14,8 @@ import CandidatTable from '../../components/Concours/CandidatTable';
 import FinalAdmissionsTable from '../../components/Concours/FinalAdmissionsTable';
 import DocumentDialog from '../../components/Concours/DocumentDialog';
 import SuccessAlert from '../../components/Concours/SuccessAlert';
+// Importez le nouveau composant
+import AdmissionAlert from '../../components/Concours/AdmissionAlert';
 import axios from 'axios';
 
 // Définition des couleurs principales
@@ -115,11 +117,14 @@ const GestionCandidaturesPhases = () => {
    /////////
    const [scoreMeriteConfig, setScoreMeriteConfig] = useState(null);
   const [sortByNote, setSortByNote] = useState(false); // NOUVEAU STATE pour le tri par note
- // Ajoutez ces nouveaux states
 const [scoreMeriteConfigEcrits, setScoreMeriteConfigEcrits] = useState(null);
 const [scoreMeriteConfigOral, setScoreMeriteConfigOral] = useState(null);
-// Ajoutez ce state
 const [successAlert, setSuccessAlert] = useState(null);
+
+const [autoAdmitCountLP, setAutoAdmitCountLP] = useState(0);
+const [autoAdmitCountLA, setAutoAdmitCountLA] = useState(0);
+// Ajoutez ce state
+const [admissionAlert, setAdmissionAlert] = useState(null);
     // Fonction pour générer les phases selon le type d'épreuve
     const getAvailablePhases = (typeEpreuve) => {
         const basePhases = [
@@ -659,32 +664,7 @@ const [successAlert, setSuccessAlert] = useState(null);
         return 'text.primary';
     };
 
-    const handleAutomaticAdmission = async () => {
-        if (!selectedConcoursId) return;
-        if (!autoAdmitCount || autoAdmitCount <= 0) {
-            alert("Veuillez entrer un nombre valide de candidats.");
-            return;
-        }
-
-        try {
-            const response = await axios.post(
-                `http://localhost:8000/api/concours/${selectedConcoursId}/resultats/automatic`, 
-                { count: autoAdmitCount, phase: phase }
-            );
-            
-            // Recharger les candidatures pour mettre à jour l'UI
-            axios.get(`http://localhost:8000/api/concours/${selectedConcoursId}/candidatures-filtered`)
-                .then(response => {
-                    setCandidatureData(response.data);
-                });
-                
-            alert(`Admission automatique effectuée avec succès !`);
-        } catch (error) {
-            console.error("Erreur lors de l'admission automatique:", error);
-            alert("Erreur lors de l'admission automatique.");
-        }
-    };
-
+  
     const handleExportExcel = async (statut = null) => {
         if (!selectedConcoursId) return;
         
@@ -905,6 +885,131 @@ const handleConfigureScoreMeriteOral = async (config) => {
 };
 
 
+// Fonction d'admission automatique standard
+const handleAutomaticAdmission = async () => {
+    if (!selectedConcoursId) return;
+    if (!autoAdmitCount || autoAdmitCount <= 0) {
+        alert("Veuillez entrer un nombre valide de candidats.");
+        return;
+    }
+
+    try {
+        const response = await axios.post(
+            `http://localhost:8000/api/concours/${selectedConcoursId}/automatic-admission`, 
+            { 
+                count: autoAdmitCount, 
+                phase: phase,
+                type: 'standard'
+            }
+        );
+        
+        // Recharger les données selon la phase
+        await reloadCurrentPhaseData();
+        
+       // ✅ NOUVELLE ALERTE STYLISÉE
+        setAdmissionAlert({
+            message: response.data.message,
+            admisCount: response.data.admis_count,
+            nonAdmisCount: response.data.non_admis_count,
+            changesCount: response.data.changes_count,
+            statutAdmis: response.data.statut_admis
+        });
+        setAutoAdmitCount(0);
+    } catch (error) {
+        console.error("Erreur lors de l'admission automatique:", error);
+        alert("Erreur lors de l'admission automatique.");
+    }
+};
+
+// Fonction d'admission automatique Liste Principale
+const handleAutomaticAdmissionLP = async () => {
+    if (!selectedConcoursId) return;
+    if (!autoAdmitCountLP || autoAdmitCountLP <= 0) {
+        alert("Veuillez entrer un nombre valide de candidats pour la Liste Principale.");
+        return;
+    }
+
+    try {
+        const response = await axios.post(
+            `http://localhost:8000/api/concours/${selectedConcoursId}/automatic-admission`, 
+            { 
+                count: autoAdmitCountLP, 
+                phase: phase,
+                type: 'liste_principale'
+            }
+        );
+        
+        await reloadCurrentPhaseData();
+        
+       {/* ✅ ALERTE D'ADMISSION */}
+{admissionAlert && (
+    <AdmissionAlert
+        message={admissionAlert.message}
+        admisCount={admissionAlert.admisCount}
+        nonAdmisCount={admissionAlert.nonAdmisCount}
+        changesCount={admissionAlert.changesCount}
+        statutAdmis={admissionAlert.statutAdmis}
+        onClose={() => setAdmissionAlert(null)}
+    />
+)}
+        setAutoAdmitCountLP(0);
+    } catch (error) {
+        console.error("Erreur lors de l'admission en Liste Principale:", error);
+        alert("Erreur lors de l'admission en Liste Principale.");
+    }
+};
+
+// Fonction d'admission automatique Liste d'Attente
+const handleAutomaticAdmissionLA = async () => {
+    if (!selectedConcoursId) return;
+    if (!autoAdmitCountLA || autoAdmitCountLA <= 0) {
+        alert("Veuillez entrer un nombre valide de candidats pour la Liste d'Attente.");
+        return;
+    }
+
+    try {
+        const response = await axios.post(
+            `http://localhost:8000/api/concours/${selectedConcoursId}/automatic-admission`, 
+            { 
+                count: autoAdmitCountLA, 
+                phase: phase,
+                type: 'liste_attente'
+            }
+        );
+        
+        await reloadCurrentPhaseData();
+        
+       // ✅ NOUVELLE ALERTE STYLISÉE
+        setAdmissionAlert({
+            message: response.data.message,
+            admisCount: response.data.admis_count,
+            nonAdmisCount: response.data.non_admis_count,
+            changesCount: response.data.changes_count,
+            statutAdmis: response.data.statut_admis
+        });
+        setAutoAdmitCountLA(0);
+    } catch (error) {
+        console.error("Erreur lors de l'admission en Liste d'Attente:", error);
+        alert("Erreur lors de l'admission en Liste d'Attente.");
+    }
+};
+
+// Fonction pour recharger les données de la phase actuelle
+const reloadCurrentPhaseData = async () => {
+    if (phase === 'candidature') {
+        const response = await axios.get(`http://localhost:8000/api/concours/${selectedConcoursId}/candidatures-filtered`);
+        setCandidatureData(response.data);
+    } else if (phase === 'ecrits') {
+        const response = await axios.get(`http://localhost:8000/api/concours/${selectedConcoursId}/ecrits`);
+        setEcritsData(response.data);
+    } else if (phase === 'oral') {
+        const response = await axios.get(`http://localhost:8000/api/concours/${selectedConcoursId}/oraux`);
+        setOralData(response.data);
+    } else if (phase === 'final') {
+        const response = await axios.get(`http://localhost:8000/api/concours/${selectedConcoursId}/final/admissions`);
+        setFinalAdmissionsData(response.data);
+    }
+};
 
 
     return (
@@ -961,11 +1066,19 @@ const handleConfigureScoreMeriteOral = async (config) => {
                     )}
 
                     {phase !== 'final' && (
-                        <AutomaticAdmission
-                            autoAdmitCount={autoAdmitCount}
-                            setAutoAdmitCount={setAutoAdmitCount}
-                            handleAutomaticAdmission={handleAutomaticAdmission}
-                        />
+                         <AutomaticAdmission
+        autoAdmitCount={autoAdmitCount}
+        setAutoAdmitCount={setAutoAdmitCount}
+        handleAutomaticAdmission={handleAutomaticAdmission}
+        autoAdmitCountLP={autoAdmitCountLP}
+        setAutoAdmitCountLP={setAutoAdmitCountLP}
+        autoAdmitCountLA={autoAdmitCountLA}
+        setAutoAdmitCountLA={setAutoAdmitCountLA}
+        handleAutomaticAdmissionLP={handleAutomaticAdmissionLP}
+        handleAutomaticAdmissionLA={handleAutomaticAdmissionLA}
+        phase={phase}
+        typeEpreuve={selectedConcours?.type_epreuve}
+    />
                     )}
                     
                     {phase === 'candidature' && (
@@ -1092,7 +1205,21 @@ const handleConfigureScoreMeriteOral = async (config) => {
                     details={successAlert.details}
                     onClose={() => setSuccessAlert(null)}
                 />
-            )}</Paper>
+            
+            )}
+               {/* ✅ ALERTE D'ADMISSION - PLACEZ-LA ICI */}
+            {admissionAlert && (
+                <AdmissionAlert
+                    message={admissionAlert.message}
+                    admisCount={admissionAlert.admisCount}
+                    nonAdmisCount={admissionAlert.nonAdmisCount}
+                    changesCount={admissionAlert.changesCount}
+                    statutAdmis={admissionAlert.statutAdmis}
+                    onClose={() => setAdmissionAlert(null)}
+                />
+            )}
+            </Paper>
+            
             )}
         </Box>
     </ThemeProvider>

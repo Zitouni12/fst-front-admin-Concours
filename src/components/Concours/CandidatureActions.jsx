@@ -482,7 +482,7 @@ const CandidatureActions = ({
                         fontWeight: 500
                     }}
                 >
-                    Trier par Moyenne Calculée
+                    Trier par Note de dossier
                 </Typography>
                 
                 <Switch

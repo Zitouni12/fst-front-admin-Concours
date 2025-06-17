@@ -16,6 +16,8 @@ import DocumentDialog from '../../components/Concours/DocumentDialog';
 import SuccessAlert from '../../components/Concours/SuccessAlert';
 // Importez le nouveau composant
 import AdmissionAlert from '../../components/Concours/AdmissionAlert';
+import DashboardHome from '../../components/Concours/DashboardHome';
+import WelcomePage from '../../components/Concours/WelcomePage';
 import axios from 'axios';
 
 // Définition des couleurs principales
@@ -1024,7 +1026,7 @@ const reloadCurrentPhaseData = async () => {
                 filieres={Array.isArray(concours) ? concours.map(c => ({ id: c.id, nom: c.title })) : []}
             />
             
-            {selectedConcoursId && selectedConcours && (
+            {selectedConcoursId && selectedConcours ? (
                 <Paper sx={{ p: 4, backgroundColor: "white", borderRadius: 2, boxShadow: 3, width: '100%' }}>
                     <Typography variant="h4" sx={{ mb: 3, textAlign: 'center', fontWeight: 'bold' }}>
                         Gestion des Candidatures - {selectedConcours.title}
@@ -1219,6 +1221,18 @@ const reloadCurrentPhaseData = async () => {
                 />
             )}
             </Paper>
+            ) : (
+    // ✅ NOUVEAU : Afficher le dashboard quand aucun concours n'est sélectionné
+    //<DashboardHome />
+    <WelcomePage onSelectConcours={() => {
+        // Fonction pour mettre en évidence le sélecteur de concours
+        const selector = document.querySelector('.MuiSelect-root') || 
+                        document.querySelector('select');
+        if (selector) {
+            selector.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            selector.focus();
+        }
+    }} />
             
             )}
         </Box>

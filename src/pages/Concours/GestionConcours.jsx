@@ -437,96 +437,27 @@ const GestionConcours = () => {
   }
 
   // Soumettre le formulaire
-  // Soumettre le formulaire
-const handleSubmit = async () => {
-  // Validation côté frontend
-  if (!formData.title || !formData.description || !formData.date_lancement || !formData.date_limite) {
-    alert("Veuillez remplir tous les champs obligatoires.");
-    return;
-  }
+  const handleSubmit = async () => {
+    try {
+      const form = new FormData()
+      Object.keys(formData).forEach((key) => form.append(key, formData[key]))
+      if (pdfFile) {
+        form.append("pdf_file", pdfFile)
+      }
 
-  if (!formData.type_epreuve) {
-    alert("Veuillez sélectionner au moins un type d'épreuve.");
-    return;
-  }
+      const response = await axios.post("http://127.0.0.1:8000/api/concours", form, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      })
 
-  // Validation des dates d'épreuves selon le type
-  if (formData.type_epreuve === "ecrit" && !formData.date_ecrit) {
-    alert("Veuillez spécifier la date de l'épreuve écrite.");
-    return;
-  }
-  
-  if (formData.type_epreuve === "oral" && !formData.date_oral) {
-    alert("Veuillez spécifier la date de l'épreuve orale.");
-    return;
-  }
-  
-  if (formData.type_epreuve === "ecrit_oral" && (!formData.date_ecrit || !formData.date_oral)) {
-    alert("Veuillez spécifier les dates des épreuves écrite et orale.");
-    return;
-  }
-
-  try {
-    const form = new FormData();
-    
-    // Ajouter tous les champs requis
-    form.append('title', formData.title);
-    form.append('description', formData.description);
-    form.append('date_lancement', formData.date_lancement);
-    form.append('date_limite', formData.date_limite);
-    form.append('type_epreuve', formData.type_epreuve);
-    
-    // Ajouter les dates d'épreuves seulement si elles sont définies
-    if (formData.date_ecrit && (formData.type_epreuve === "ecrit" || formData.type_epreuve === "ecrit_oral")) {
-      form.append('date_ecrit', formData.date_ecrit);
-    }
-    if (formData.date_oral && (formData.type_epreuve === "oral" || formData.type_epreuve === "ecrit_oral")) {
-      form.append('date_oral', formData.date_oral);
-    }
-    
-    // Ajouter le fichier PDF s'il existe
-    if (pdfFile) {
-      form.append('pdf_file', pdfFile);
-    }
-
-   // Pour déboguer le contenu du FormData
-form.forEach((value, key) => {
-  console.log(`${key}:`, value);
-});
-    const response = await axios.post("http://127.0.0.1:8000/api/concours", form, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
-
-    alert("Concours publié avec succès !");
-    setConcoursList((prev) => [response.data, ...prev]);
-    
-    // Réinitialiser le formulaire
-    setFormData({
-      title: "",
-      description: "",
-      date_lancement: "",
-      date_limite: "",
-      date_ecrit: "",
-      date_oral: "",
-      type_epreuve: "ecrit_oral",
-    });
-    setPdfFile(null);
-    
-  } catch (error) {
-    console.error("Erreur lors de la publication :", error);
-    
-    // Afficher plus de détails sur l'erreur
-    if (error.response) {
-      console.error("Réponse du serveur:", error.response.data);
-      console.error("Status:", error.response.status);
-      alert(`Erreur ${error.response.status}: ${error.response.data.message || 'Erreur lors de la publication du concours.'}`);
-    } else {
-      alert("Erreur réseau lors de la publication du concours.");
+      alert("Concours publié avec succès !")
+      setConcoursList((prev) => [response.data, ...prev]) // ajout local
+    } catch (error) {
+      console.error("Erreur lors de la publication :", error)
+      alert("Erreur lors de la publication du concours.")
     }
   }
-};
 
   const handleSave = async () => {
     const formData = new FormData()

@@ -1190,14 +1190,14 @@ const reloadCurrentPhaseData = async () => {
                                 variant="contained"
                                 onClick={() => handleExportExcel('Admis liste principale')}
                             >
-                                Télécharger Liste Principale
+                                Télécharger Liste Final
                             </Button>
-                            <Button
+                           {/*   <Button
                                 variant="contained"
                                 onClick={() => handleExportExcel('Admis liste attente')}
                             >
                                 Télécharger Liste d'Attente
-                            </Button>
+                            </Button>  */}
                         </Box>
                     )}
                      {/* ✅ ALERTE DE SUCCÈS */}
